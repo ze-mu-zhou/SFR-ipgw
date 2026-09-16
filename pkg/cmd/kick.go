@@ -35,10 +35,10 @@ var (
 			for _, sid := range sids {
 				result, err := h.Kick(sid)
 				if result {
-					console.InfoF("#%s: done\n", sid)
+					console.InfoF("#%s: 成功\n", sid)
 				} else {
 					failed++
-					console.InfoF("#%s: fail\n", sid)
+					console.InfoF("#%s: 失败\n", sid)
 					if err != nil {
 						console.InfoF("\t%v\n", err)
 					}

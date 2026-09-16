@@ -60,17 +60,6 @@ func TestUnzipExtractsButNeverOverwrites(t *testing.T) {
 		t.Fatal("existing file changed")
 	}
 }
-func TestFileMustExistDoesNotTruncate(t *testing.T) {
-	p := filepath.Join(t.TempDir(), "config")
-	os.WriteFile(p, []byte("config"), 0600)
-	if e := FileMustExist(p); e != nil {
-		t.Fatal(e)
-	}
-	data, _ := os.ReadFile(p)
-	if string(data) != "config" {
-		t.Fatal("truncated file")
-	}
-}
 func TestSemverNumericPrereleaseAndInvalidInput(t *testing.T) {
 	for _, s := range []string{"1.2.3.4", "1.a.0", "01.2.3", "1.2.3-01", "1.2.3-", "1.2.3+"} {
 		if ParseVersion(s) != nil {

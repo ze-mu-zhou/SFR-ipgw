@@ -33,9 +33,9 @@ func TestLoginCAS(t *testing.T) {
 		{name: "missing key stops before submission", missingKey: true, wantError: "无法读取学校 RSA 公钥"},
 		{name: "authenticated portal 302", setCookie: true, redirectStatus: http.StatusFound},
 		{name: "authenticated portal 303", setCookie: true, redirectStatus: http.StatusSeeOther},
-		{name: "redirect without ticket is not success", redirectStatus: http.StatusFound, wantError: "trusted origin"},
-		{name: "never replay credentials after 307", setCookie: true, redirectStatus: http.StatusTemporaryRedirect, wantError: "trusted origin"},
-		{name: "never replay credentials after 308", setCookie: true, redirectStatus: http.StatusPermanentRedirect, wantError: "trusted origin"},
+		{name: "redirect without ticket is not success", redirectStatus: http.StatusFound, wantError: "可信站点"},
+		{name: "never replay credentials after 307", setCookie: true, redirectStatus: http.StatusTemporaryRedirect, wantError: "可信站点"},
+		{name: "never replay credentials after 308", setCookie: true, redirectStatus: http.StatusPermanentRedirect, wantError: "可信站点"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			posts := 0

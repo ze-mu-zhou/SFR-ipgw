@@ -65,7 +65,7 @@ var (
 				username,
 				password,
 				ctx.String("secret")); err != nil {
-				return fmt.Errorf("fail to add account:\n\t%v", err)
+				return fmt.Errorf("添加账号失败：\n\t%v", err)
 			}
 
 			if ctx.Bool("default") {
@@ -74,7 +74,7 @@ var (
 			if err = store.Persist(); err != nil {
 				return err
 			}
-			console.InfoF("'%s' added successfully\n", username)
+			console.InfoF("'%s' 已添加\n", username)
 			return nil
 		},
 		OnUsageError: onUsageError,
@@ -98,14 +98,14 @@ var (
 			}
 			username := ctx.String("username")
 
-			if !store.Config.DelAccount(username) {
-				return fmt.Errorf("fail to delete account:\n\t'%s' not found", username)
+			if err = store.Config.DelAccount(username); err != nil {
+				return fmt.Errorf("删除账号失败：\n\t%v", err)
 			}
 
 			if err = store.Persist(); err != nil {
 				return err
 			}
-			console.InfoF("'%s' deleted successfully\n", username)
+			console.InfoF("'%s' 已删除\n", username)
 			return nil
 		},
 		OnUsageError: onUsageError,
@@ -123,7 +123,7 @@ var (
 			username := ctx.String("username")
 			account := store.Config.GetAccount(username)
 			if account == nil {
-				return fmt.Errorf("fail to set account:\n\t'%s' not found", username)
+				return fmt.Errorf("修改账号失败：\n\t未找到 '%s'", username)
 			}
 
 			if ctx.IsSet("secret") {
@@ -138,7 +138,7 @@ var (
 					return err
 				}
 				if err = account.SetPassword(password, nil); err != nil {
-					return fmt.Errorf("fail to set password:\n\t'%v'", err)
+					return fmt.Errorf("设置密码失败：\n\t%v", err)
 				}
 			}
 
@@ -149,7 +149,7 @@ var (
 			if err = store.Persist(); err != nil {
 				return err
 			}
-			console.InfoF("'%s' edited successfully\n", username)
+			console.InfoF("'%s' 已修改\n", username)
 			return nil
 		},
 		OnUsageError: onUsageError,
@@ -168,7 +168,7 @@ var (
 			for i, account := range store.Config.Accounts {
 				console.InfoF("#%d %s", i, account.String())
 				if account.Username == store.Config.DefaultAccount {
-					console.Info(" - default")
+					console.Info(" - 默认")
 				}
 				console.InfoL()
 			}

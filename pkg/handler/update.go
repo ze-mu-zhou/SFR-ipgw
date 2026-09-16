@@ -45,19 +45,19 @@ func (d *downloader) Read(p []byte) (int, error) {
 	n, e := d.Reader.Read(p)
 	d.current += int64(n)
 	if d.total > 0 {
-		console.InfoF("\rdownloading %.2f%%", float64(d.current)/float64(d.total)*100)
+		console.InfoF("\r已下载 %.2f%%", float64(d.current)/float64(d.total)*100)
 	} else {
-		console.InfoF("\rdownloading %d bytes", d.current)
+		console.InfoF("\r已下载 %d 字节", d.current)
 	}
 	return n, e
 }
 func NewUpdateHandler() *UpdateHandler {
 	return &UpdateHandler{client: &http.Client{Timeout: 90 * time.Second, CheckRedirect: func(req *http.Request, via []*http.Request) error {
 		if req.URL.Scheme != "https" {
-			return fmt.Errorf("refusing non-HTTPS update redirect")
+			return fmt.Errorf("更新重定向到非 HTTPS 地址，已拒绝")
 		}
 		if len(via) >= 10 {
-			return fmt.Errorf("too many update redirects")
+			return fmt.Errorf("更新重定向次数过多")
 		}
 		return nil
 	}}}
@@ -67,7 +67,7 @@ var repositoryPattern = regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`)
 
 func updateAllowed() error {
 	if ipgw.BuildKind != "release" || ipgw.UpdateEnabled != "true" || !repositoryPattern.MatchString(ipgw.ReleaseRepo) || utils.ParseVersion(ipgw.Version) == nil {
-		return fmt.Errorf("self-update is disabled for this local/custom build; rebuild manually, or use a release explicitly configured with a compatible release repository")
+		return fmt.Errorf("本地/自定义构建已禁用自动更新；请手动重新构建，或使用配置了兼容发布仓库的正式版本")
 	}
 	return nil
 }
@@ -78,18 +78,18 @@ func (u *UpdateHandler) CheckLatestVersion() (bool, error) {
 	u.release = nil
 	resp, e := u.client.Get("https://api.github.com/repos/" + ipgw.ReleaseRepo + "/releases/latest")
 	if e != nil {
-		return false, fmt.Errorf("check latest version: %w", e)
+		return false, fmt.Errorf("检查最新版本失败：%w", e)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return false, fmt.Errorf("release API returned HTTP %d", resp.StatusCode)
+		return false, fmt.Errorf("发布接口返回 HTTP %d", resp.StatusCode)
 	}
 	var release releaseInfo
 	if e = json.NewDecoder(io.LimitReader(resp.Body, 2<<20)).Decode(&release); e != nil {
-		return false, fmt.Errorf("decode release: %w", e)
+		return false, fmt.Errorf("解析发布信息失败：%w", e)
 	}
 	if release.Draft || release.Prerelease || utils.ParseVersion(release.Version) == nil {
-		return false, fmt.Errorf("release API returned an invalid stable version")
+		return false, fmt.Errorf("发布接口返回了无效的正式版本")
 	}
 	u.release = &release
 	return utils.CompareVersion(utils.ParseVersion(release.Version), utils.ParseVersion(ipgw.Version)), nil
@@ -97,7 +97,7 @@ func (u *UpdateHandler) CheckLatestVersion() (bool, error) {
 func (u *UpdateHandler) download(rawURL string) (path string, err error) {
 	parsed, e := url.Parse(rawURL)
 	if e != nil || parsed.Scheme != "https" || parsed.Host != "github.com" || parsed.User != nil || !strings.HasPrefix(parsed.Path, "/"+ipgw.ReleaseRepo+"/releases/download/") {
-		return "", fmt.Errorf("download URL is outside the configured release repository")
+		return "", fmt.Errorf("下载地址不在配置的发布仓库内")
 	}
 	resp, e := u.client.Get(rawURL)
 	if e != nil {
@@ -105,10 +105,10 @@ func (u *UpdateHandler) download(rawURL string) (path string, err error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("download returned HTTP %d", resp.StatusCode)
+		return "", fmt.Errorf("下载返回 HTTP %d", resp.StatusCode)
 	}
 	if resp.ContentLength > 128<<20 {
-		return "", fmt.Errorf("download exceeds 128 MiB limit")
+		return "", fmt.Errorf("下载超出 128 MiB 限制")
 	}
 	f, e := os.CreateTemp("", "ipgw.release.*")
 	if e != nil {
@@ -130,20 +130,20 @@ func (u *UpdateHandler) download(rawURL string) (path string, err error) {
 		return path, closeErr
 	}
 	if n > 128<<20 {
-		return path, fmt.Errorf("download exceeds 128 MiB limit")
+		return path, fmt.Errorf("下载超出 128 MiB 限制")
 	}
 	if resp.ContentLength >= 0 && n != resp.ContentLength {
-		return path, fmt.Errorf("incomplete download")
+		return path, fmt.Errorf("下载不完整")
 	}
 	return path, nil
 }
 func verifyDigest(path, digest string) error {
 	if !strings.HasPrefix(digest, "sha256:") {
-		return fmt.Errorf("release asset is missing a SHA-256 digest")
+		return fmt.Errorf("发布文件缺少 SHA-256 摘要")
 	}
 	expected, e := hex.DecodeString(strings.TrimPrefix(digest, "sha256:"))
 	if e != nil || len(expected) != sha256.Size {
-		return fmt.Errorf("release asset has an invalid SHA-256 digest")
+		return fmt.Errorf("发布文件的 SHA-256 摘要无效")
 	}
 	f, e := os.Open(path)
 	if e != nil {
@@ -155,24 +155,24 @@ func verifyDigest(path, digest string) error {
 		return e
 	}
 	if hex.EncodeToString(h.Sum(nil)) != hex.EncodeToString(expected) {
-		return fmt.Errorf("download SHA-256 does not match release metadata")
+		return fmt.Errorf("下载文件的 SHA-256 与发布元数据不匹配")
 	}
 	return nil
 }
 func validateExecutable(path string) error {
 	info, e := buildinfo.ReadFile(path)
 	if e != nil {
-		return fmt.Errorf("invalid Go executable: %w", e)
+		return fmt.Errorf("无效的 Go 可执行文件：%w", e)
 	}
 	if info.Main.Path != "github.com/ze-mu-zhou/SFR-ipgw" || (info.Path != "command-line-arguments" && info.Path != "github.com/ze-mu-zhou/SFR-ipgw/cmd/ipgw") {
-		return fmt.Errorf("release contains an unexpected application %q", info.Path)
+		return fmt.Errorf("发布中包含意外的应用程序 %q", info.Path)
 	}
 	settings := map[string]string{}
 	for _, s := range info.Settings {
 		settings[s.Key] = s.Value
 	}
 	if settings["GOOS"] != runtime.GOOS || settings["GOARCH"] != runtime.GOARCH {
-		return fmt.Errorf("release executable platform does not match %s/%s", runtime.GOOS, runtime.GOARCH)
+		return fmt.Errorf("发布可执行文件的平台与 %s/%s 不匹配", runtime.GOOS, runtime.GOARCH)
 	}
 	return nil
 }
@@ -192,13 +192,13 @@ func replaceExecutable(current, candidate string, rename func(string, string) er
 		return "", e
 	}
 	if e = rename(current, backup); e != nil {
-		return "", fmt.Errorf("back up executable: %w", e)
+		return "", fmt.Errorf("备份可执行文件失败：%w", e)
 	}
 	if e = rename(candidate, current); e != nil {
 		if rollbackErr := rename(backup, current); rollbackErr != nil {
-			return backup, fmt.Errorf("install failed: %v; rollback failed: %v; recover executable from %s", e, rollbackErr, backup)
+			return backup, fmt.Errorf("安装失败：%v；回滚失败：%v；请从 %s 恢复可执行文件", e, rollbackErr, backup)
 		}
-		return "", fmt.Errorf("install failed; original executable restored: %w", e)
+		return "", fmt.Errorf("安装失败，已恢复原可执行文件：%w", e)
 	}
 	return backup, nil
 }
@@ -227,10 +227,10 @@ func (u *UpdateHandler) Update() error {
 		}
 	}
 	if asset == nil {
-		return fmt.Errorf("release has no asset %s", name)
+		return fmt.Errorf("发布中没有文件 %s", name)
 	}
 	if asset.Digest == "" {
-		return fmt.Errorf("release asset has no SHA-256 digest; manual update required")
+		return fmt.Errorf("发布文件没有 SHA-256 摘要，请手动更新")
 	}
 	downloaded, e := u.download(asset.URL)
 	if e != nil {
@@ -271,6 +271,6 @@ func (u *UpdateHandler) Update() error {
 	if e != nil {
 		return e
 	}
-	console.InfoF("previous executable retained at %s\n", backup)
+	console.InfoF("旧可执行文件已保留在 %s\n", backup)
 	return nil
 }

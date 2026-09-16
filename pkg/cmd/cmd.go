@@ -28,7 +28,7 @@ var (
 		},
 		Action: func(ctx *cli.Context) error {
 			if ctx.NArg() != 0 {
-				console.InfoL("command not found\n")
+				console.InfoL("未找到该命令\n")
 				cli.ShowAppHelpAndExit(ctx, 1)
 				return nil
 			}
@@ -48,6 +48,8 @@ var (
 			},
 		},
 		OnUsageError: onUsageError,
+		Writer:       console.Stdout,
+		ErrWriter:    console.Stderr,
 	}
 )
 
@@ -59,13 +61,13 @@ func loginUseDefaultAccount(ctx *cli.Context) error {
 	}
 	account := store.Config.GetDefaultAccount()
 	if account == nil {
-		return errors.New("no account stored")
+		return errors.New("没有已保存的账号")
 	}
-	console.InfoF("using account '%s'\n", account.Username)
+	console.InfoF("使用账号 '%s'\n", account.Username)
 	account.Secret = ctx.String("secret")
 
 	if err = login(handler.NewIpgwHandler(), account); err != nil {
-		return fmt.Errorf("login failed: \n\t%v", err)
+		return fmt.Errorf("登录失败：\n\t%v", err)
 	}
 	return nil
 }

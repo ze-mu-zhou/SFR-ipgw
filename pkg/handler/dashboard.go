@@ -193,7 +193,7 @@ func (d *DashboardHandler) GetPackage() (*Package, error) {
 			}
 			v, e := strconv.ParseFloat(p.Balance, 64)
 			if e != nil {
-				return nil, errors.New("invalid balance in billing page")
+				return nil, errors.New("账单页面中的余额无效")
 			}
 			p.Overdue = v < 0
 			p.BillingPeriod = field(r, "", "计费周期", "账期")
@@ -261,7 +261,7 @@ func (d *DashboardHandler) GetDevice() ([]Device, error) {
 }
 func (d *DashboardHandler) records(path, title string, page int) ([]gridRow, error) {
 	if page < 1 {
-		return nil, errors.New("page must be positive")
+		return nil, errors.New("页码必须大于零")
 	}
 	b, e := dashboardPage(d.client, fmt.Sprintf("%s?page=%d&per-page=10", path, page))
 	if e != nil {
@@ -300,7 +300,7 @@ func (d *DashboardHandler) GetBill(page int) ([]BillRecord, error) {
 		fixed, e1 := strconv.ParseFloat(f, 64)
 		variable, e2 := strconv.ParseFloat(v, 64)
 		if e1 != nil || e2 != nil {
-			return nil, errors.New("invalid bill amount")
+			return nil, errors.New("账单金额无效")
 		}
 		out = append(out, BillRecord{id, fixed + variable, traffic, duration, date})
 	}

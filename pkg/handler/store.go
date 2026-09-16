@@ -39,7 +39,7 @@ func getConfigPath(path string) (string, error) {
 }
 func (h *StoreHandler) Persist() error {
 	if h.Config == nil {
-		return errors.New("no configuration loaded")
+		return errors.New("未加载配置")
 	}
 	data, e := json.MarshalIndent(h.Config, "", "  ")
 	if e != nil {
@@ -75,17 +75,17 @@ func (h *StoreHandler) Load() error {
 		return nil
 	}
 	if e != nil {
-		return fmt.Errorf("load config: %w", e)
+		return fmt.Errorf("加载配置失败：%w", e)
 	}
 	config := &model.Config{}
 	if strings.TrimSpace(string(data)) != "" {
 		if e = json.Unmarshal(data, config); e != nil {
-			return fmt.Errorf("invalid config: %w", e)
+			return fmt.Errorf("配置无效：%w", e)
 		}
 	}
 	for _, a := range config.Accounts {
 		if a == nil || a.Username == "" {
-			return errors.New("invalid account in configuration")
+			return errors.New("配置中存在无效账号")
 		}
 	}
 	h.Config = config
@@ -97,7 +97,7 @@ func (h *StoreHandler) Load() error {
 // credential has been stored and read back successfully.
 func (h *StoreHandler) MigrateCredentials(secret string) error {
 	if h.Config == nil {
-		return errors.New("no configuration loaded")
+		return errors.New("未加载配置")
 	}
 	copyConfig := *h.Config
 	copyConfig.Accounts = make([]*model.Account, len(h.Config.Accounts))
@@ -108,7 +108,7 @@ func (h *StoreHandler) MigrateCredentials(secret string) error {
 		if a.EncryptedPassword != "" {
 			p, e := utils.Decrypt(a.EncryptedPassword, []byte(secret))
 			if e != nil || p == "" {
-				return errors.New("legacy password decryption failed; configuration unchanged")
+				return errors.New("旧密码解密失败，配置未更改")
 			}
 			passwords[i] = p
 		}
@@ -124,7 +124,7 @@ func (h *StoreHandler) MigrateCredentials(secret string) error {
 		}
 		saved, e := loadCredential(ref)
 		if e != nil || saved != p {
-			return errors.New("credential verification failed; configuration unchanged")
+			return errors.New("凭据校验失败，配置未更改")
 		}
 		a.CredentialRef = ref
 		a.EncryptedPassword = ""

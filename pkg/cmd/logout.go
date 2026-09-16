@@ -19,16 +19,16 @@ var (
 				return err
 			}
 			if !connected {
-				return errors.New("not in campus network")
+				return errors.New("当前不在校园网内")
 			}
 			if !loggedIn {
-				return errors.New("not logged in yet")
+				return errors.New("尚未登录")
 			}
 			info := h.GetInfo()
 			if err := h.Logout(); err != nil {
-				return fmt.Errorf("fail to logout account '%s':\n\t%v", info.Username, err)
+				return fmt.Errorf("注销账号 '%s' 失败：\n\t%v", info.Username, err)
 			}
-			console.InfoF("logout account '%s' successfully\n", info.Username)
+			console.InfoF("账号 '%s' 已注销\n", info.Username)
 			return nil
 		},
 		OnUsageError: onUsageError,

@@ -9,15 +9,6 @@ import (
 	"strings"
 )
 
-func GetHomeDir() (string, error) { return os.UserHomeDir() }
-func FileMustExist(path string) error {
-	f, e := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0600)
-	if e != nil {
-		return e
-	}
-	return f.Close()
-}
-func IsFileExist(path string) bool { _, e := os.Stat(path); return e == nil || !os.IsNotExist(e) }
 func GetExecutablePathAndDir() (path, dir string, err error) {
 	p, e := os.Executable()
 	if e != nil {
@@ -48,18 +39,18 @@ func Unzip(zipFile, destDir string) error {
 	for _, f := range z.File {
 		name := f.Name
 		if name == "" || strings.HasPrefix(name, "/") || strings.ContainsAny(name, "\\:") || filepath.IsAbs(name) {
-			return fmt.Errorf("unsafe archive path %q", name)
+			return fmt.Errorf("压缩包路径不安全：%q", name)
 		}
 		target := filepath.Join(root, filepath.FromSlash(name))
 		rel, e := filepath.Rel(root, target)
 		if e != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
-			return fmt.Errorf("archive path escapes destination: %q", name)
+			return fmt.Errorf("压缩包路径逃逸目标目录：%q", name)
 		}
 		if f.Mode()&os.ModeType != 0 && !f.FileInfo().IsDir() {
-			return fmt.Errorf("unsupported archive entry %q", name)
+			return fmt.Errorf("不支持的压缩包条目：%q", name)
 		}
 		if f.UncompressedSize64 > 256<<20-total {
-			return fmt.Errorf("archive exceeds 256 MiB extraction limit")
+			return fmt.Errorf("压缩包超出 256 MiB 解压限制")
 		}
 		total += f.UncompressedSize64
 		if e = rejectSymlinks(target); e != nil {
@@ -87,7 +78,7 @@ func rejectSymlinks(path string) error {
 			return e
 		}
 		if e == nil && info.Mode()&os.ModeSymlink != 0 {
-			return fmt.Errorf("symlink in extraction path: %s", path)
+			return fmt.Errorf("解压路径中存在符号链接：%s", path)
 		}
 		parent := filepath.Dir(path)
 		if parent == path {

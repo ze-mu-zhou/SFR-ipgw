@@ -49,19 +49,19 @@ func (h *IpgwHandler) Login(a *model.Account) error {
 		Code *int `json:"code"`
 	}
 	if e = json.Unmarshal([]byte(b), &r); e != nil {
-		return errors.New("invalid gateway login response")
+		return errors.New("网关登录响应无效")
 	}
 	if r.Code == nil {
-		return errors.New("gateway login response missing status")
+		return errors.New("网关登录响应缺少状态码")
 	}
 	if *r.Code != 0 {
-		return fmt.Errorf("gateway login failed (code %d)", *r.Code)
+		return fmt.Errorf("网关登录失败（代码 %d）", *r.Code)
 	}
 	if err := h.ParseBasicInfo(); err != nil {
 		return err
 	}
 	if h.info.Username == "" {
-		return errors.New("gateway did not confirm an online account after login")
+		return errors.New("登录后网关未确认在线账号")
 	}
 	return nil
 }
@@ -85,10 +85,10 @@ func (h *IpgwHandler) FetchUsageInfo() error {
 	}
 	d := h.oriInfo
 	if *d.Error != "ok" {
-		return errors.New("gateway account is not logged in")
+		return errors.New("网关账号未登录")
 	}
 	if d.Bytes == nil || d.Seconds == nil || d.Balance == nil || *d.Bytes < 0 || *d.Seconds < 0 {
-		return errors.New("gateway usage response has missing or invalid fields")
+		return errors.New("网关用量响应缺少字段或字段无效")
 	}
 	h.info.Traffic = *d.Bytes
 	h.info.UsedTime = *d.Seconds
@@ -114,7 +114,7 @@ func (h *IpgwHandler) requestLoginApi() (string, error) {
 		return "", e
 	}
 	if u.Hostname() != "ipgw.neu.edu.cn" || !strings.HasPrefix(u.Path, "/srun_portal") {
-		return "", errors.New("CAS did not return a gateway ticket")
+		return "", errors.New("统一认证未返回网关票据")
 	}
 	r, e = h.client.Get("https://ipgw.neu.edu.cn/v1" + u.RequestURI())
 	if e != nil {
@@ -138,17 +138,17 @@ func (h *IpgwHandler) getJsonIpgwData() error {
 	}
 	var d gatewayInfo
 	if e = json.Unmarshal([]byte(b), &d); e != nil {
-		return errors.New("invalid gateway information response")
+		return errors.New("网关信息响应无效")
 	}
 	if d.Error == nil {
-		return errors.New("gateway response missing status")
+		return errors.New("网关响应缺少状态")
 	}
 	if *d.Error == "ok" {
 		if !required(d.Username, d.OnlineIP) {
-			return errors.New("gateway response missing account or IP")
+			return errors.New("网关响应缺少账号或 IP")
 		}
 	} else if *d.Error != "not_online_error" || d.ClientIP == "" {
-		return errors.New("gateway returned an unsuccessful status")
+		return errors.New("网关返回了失败状态")
 	}
 	h.oriInfo = d
 	return nil
@@ -183,10 +183,10 @@ func (h *IpgwHandler) Logout() error {
 		Error string `json:"error"`
 	}
 	if json.Unmarshal([]byte(b), &out) != nil {
-		return errors.New("invalid logout response")
+		return errors.New("注销响应无效")
 	}
 	if out.Error != "ok" {
-		return errors.New("gateway rejected logout")
+		return errors.New("网关拒绝了注销请求")
 	}
 	return nil
 }
@@ -200,7 +200,7 @@ func (h *IpgwHandler) Kick(sid string) (bool, error) {
 	h.kickMu.Lock()
 	defer h.kickMu.Unlock()
 	if sid == "" {
-		return false, errors.New("device session ID is required")
+		return false, errors.New("需要设备会话 ID")
 	}
 	if !h.kickReady {
 		if _, e := dashboardPage(h.client, "/sso/neusoft/index"); e != nil {
@@ -242,7 +242,7 @@ func (h *IpgwHandler) Kick(sid string) (bool, error) {
 		return false, e
 	}
 	if !strings.Contains(b, "下线请求已发出") {
-		return false, errors.New("server did not confirm device disconnection")
+		return false, errors.New("服务器未确认设备已下线")
 	}
 	return true, nil
 }

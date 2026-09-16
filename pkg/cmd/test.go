@@ -16,17 +16,17 @@ var (
 			if err != nil {
 				return err
 			}
-			console.Info("campus network:   ")
+			console.Info("校园网连接： ")
 			if connected {
-				console.InfoL("connected")
+				console.InfoL("已连接")
 			} else {
-				console.InfoL("disconnected")
+				console.InfoL("未连接")
 			}
-			console.Info("ipgw logged in:   ")
+			console.Info("ipgw 登录：  ")
 			if loggedIn {
-				console.InfoL("yes")
+				console.InfoL("是")
 			} else {
-				console.InfoL("no")
+				console.InfoL("否")
 			}
 			return nil
 		},

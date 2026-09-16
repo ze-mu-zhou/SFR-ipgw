@@ -41,7 +41,7 @@ func readCASResponse(resp *http.Response) (string, error) {
 func loginCAS(client *http.Client, loginURL, username, password string) error {
 	origin, err := url.Parse(loginURL)
 	if err != nil || origin.Scheme != "https" || origin.Host == "" {
-		return errors.New("invalid HTTPS authentication endpoint")
+		return errors.New("统一认证地址不是有效的 HTTPS 地址")
 	}
 	guarded := *client
 	previousRedirect := client.CheckRedirect
@@ -56,13 +56,13 @@ func loginCAS(client *http.Client, loginURL, username, password string) error {
 				stoppedAfterAuthentication = true
 				return http.ErrUseLastResponse
 			}
-			return errors.New("authentication redirect left the trusted origin")
+			return errors.New("认证重定向离开了可信站点，已停止登录")
 		}
 		if previousRedirect != nil {
 			return previousRedirect(req, via)
 		}
 		if len(via) >= 10 {
-			return errors.New("too many authentication redirects")
+			return errors.New("认证重定向次数过多")
 		}
 		return nil
 	}

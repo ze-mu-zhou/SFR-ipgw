@@ -21,7 +21,7 @@ func newSession() *http.Client {
 func responseBody(resp *http.Response) (string, error) {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("server returned HTTP %d", resp.StatusCode)
+		return "", fmt.Errorf("服务器返回 HTTP %d", resp.StatusCode)
 	}
 	const limit = 4 * 1024 * 1024
 	data, err := io.ReadAll(io.LimitReader(resp.Body, limit+1))
@@ -29,7 +29,7 @@ func responseBody(resp *http.Response) (string, error) {
 		return "", err
 	}
 	if len(data) > limit {
-		return "", errors.New("response too large")
+		return "", errors.New("响应过大，已停止读取")
 	}
 	return string(data), nil
 }
@@ -71,7 +71,7 @@ func nodes(n *html.Node, tag string) []*html.Node {
 }
 func pageDOM(body string) (*html.Node, error) { return html.Parse(strings.NewReader(body)) }
 func pageFormatError() error {
-	return errors.New("page format changed or login expired: required fields are missing")
+	return errors.New("页面格式已变化或登录已过期：缺少必要字段")
 }
 func dashboardPage(client *http.Client, path string) (string, error) {
 	resp, err := client.Get("https://ipgw.neu.edu.cn:8800" + path)
@@ -80,7 +80,7 @@ func dashboardPage(client *http.Client, path string) (string, error) {
 	}
 	if resp.Request != nil && (resp.Request.URL.Host != "ipgw.neu.edu.cn:8800" || strings.Contains(resp.Request.URL.Path, "login")) {
 		resp.Body.Close()
-		return "", errors.New("billing session expired")
+		return "", errors.New("计费系统会话已过期，请重新登录")
 	}
 	return responseBody(resp)
 }
