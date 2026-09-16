@@ -59,6 +59,72 @@ func TestBillDOMWhitespaceAndHeaders(t *testing.T) {
 		t.Fatalf("unexpected rows: %+v", rows)
 	}
 }
+
+func TestRecordsIgnorePageSummaries(t *testing.T) {
+	for _, tc := range []struct {
+		name, title, row string
+		read             func(*DashboardHandler) (int, error)
+	}{
+		{"usage", "上网明细", `<td data-col-seq="1">2026-09-01 10:00:00</td><td data-col-seq="2">2026-09-01 11:00:00</td><td data-col-seq="5">192.0.2.1</td><td data-col-seq="17">1 GB</td><td data-col-seq="19">1小时</td>`, func(d *DashboardHandler) (int, error) {
+			rows, err := d.GetUsageRecords(1)
+			if err == nil && len(rows) == 1 && (rows[0].IP != "192.0.2.1" || rows[0].Traffic != "1 GB") {
+				t.Errorf("unexpected usage: %+v", rows)
+			}
+			return len(rows), err
+		}},
+		{"bills", "结算清单", `<td data-col-seq="0">123</td><td data-col-seq="2">5.25</td><td data-col-seq="3">0.75</td><td data-col-seq="7">1 GB</td><td data-col-seq="10">3600</td><td data-col-seq="12">2026-09-01</td>`, func(d *DashboardHandler) (int, error) {
+			rows, err := d.GetBill(1)
+			if err == nil && len(rows) == 1 && (rows[0].ID != "123" || rows[0].Cost != 6) {
+				t.Errorf("unexpected bill: %+v", rows)
+			}
+			return len(rows), err
+		}},
+		{"recharges", "缴费清单", `<td data-col-seq="0">123</td><td data-col-seq="2">10.00</td><td data-col-seq="6">2026-09-01</td>`, func(d *DashboardHandler) (int, error) {
+			rows, err := d.GetRecharge(1)
+			if err == nil && len(rows) == 1 && (rows[0].ID != "123" || rows[0].Cost != "10.00") {
+				t.Errorf("unexpected recharge: %+v", rows)
+			}
+			return len(rows), err
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			prefix := `<title>` + tc.title + `</title><table><tbody>`
+			// Real pages append this summary inside tbody without data-col-seq.
+			summary := `<tr class="warning kv-page-summary"><td>本页合计</td><td></td><td>10.00</td></tr>`
+			body := prefix + `<tr data-key="123">` + tc.row + `</tr>` + summary + `</tbody></table>`
+			if n, err := tc.read(dashboardFixture(body)); err != nil || n != 1 {
+				t.Fatalf("records=%d error=%v", n, err)
+			}
+			// Skipping known summaries must not hide malformed data rows.
+			body = prefix + `<tr>` + tc.row + `</tr><tr><td>broken record</td></tr>` + summary + `</tbody></table>`
+			if _, err := tc.read(dashboardFixture(body)); err == nil {
+				t.Fatal("malformed record was silently skipped")
+			}
+			body = prefix + `<tr><td colspan="20"><div class="empty">没有找到数据。</div></td></tr>` + summary + `</tbody></table>`
+			if n, err := tc.read(dashboardFixture(body)); err != nil || n != 0 {
+				t.Fatalf("empty records=%d error=%v", n, err)
+			}
+			if _, err := tc.read(dashboardFixture(prefix + summary + `</tbody></table>`)); err == nil {
+				t.Fatal("summary alone was accepted as an empty result")
+			}
+		})
+	}
+}
+
+func TestTableRowsExcludeNonDataRows(t *testing.T) {
+	doc, err := pageDOM(`<table><thead><tr><th>编号</th></tr><tr><td><input></td></tr></thead>
+<tbody><tr class="filters"><td><input></td></tr><tr><td>123</td></tr>
+<tr class="kv-page-summary warning"><td>本页合计</td></tr></tbody>
+<tfoot><tr><td>总计</td></tr></tfoot></table>`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows := tableRows(nodes(doc, "table")[0])
+	if len(rows) != 1 || field(rows[0], "0", "编号") != "123" {
+		t.Fatalf("unexpected data rows: %+v", rows)
+	}
+}
+
 func TestPackageRejectsMissingAndInvalidBalance(t *testing.T) {
 	for _, b := range []string{`<table><tr><td data-col-seq="3">10 MB</td></tr></table>`, `<table><tr><td data-col-seq="3">10 MB</td><td data-col-seq="4">30</td><td data-col-seq="6">20</td><td data-col-seq="7">invalid</td></tr></table>`} {
 		d := &DashboardHandler{cachedDashboardIndexContent: b}

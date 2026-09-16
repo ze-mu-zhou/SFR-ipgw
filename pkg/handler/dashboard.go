@@ -121,6 +121,9 @@ func tableRows(t *html.Node) []gridRow {
 	}
 	var out []gridRow
 	for _, r := range nodes(t, "tr") {
+		if !isDataRow(r, t) {
+			continue
+		}
 		row := gridRow{cells: map[string]string{}, sid: attr(r, "data-key")}
 		for i, c := range nodes(r, "td") {
 			key := attr(c, "data-col-seq")
@@ -140,6 +143,27 @@ func tableRows(t *html.Node) []gridRow {
 	}
 	return out
 }
+
+func isDataRow(r, table *html.Node) bool {
+	// Yii/Kartik puts page summaries in tbody as well as tfoot. They have
+	// ordinary td cells, but must not be parsed as incomplete records.
+	for _, class := range strings.Fields(attr(r, "class")) {
+		switch class {
+		case "kv-page-summary", "filters":
+			return false
+		}
+	}
+	for p := r.Parent; p != nil && p != table; p = p.Parent {
+		if p.Type == html.ElementNode {
+			switch p.Data {
+			case "thead", "tfoot", "table":
+				return false
+			}
+		}
+	}
+	return true
+}
+
 func field(row gridRow, id string, names ...string) string {
 	for _, n := range names {
 		if v := row.cells[n]; v != "" {
