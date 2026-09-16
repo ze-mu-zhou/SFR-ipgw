@@ -45,8 +45,17 @@ func loginCAS(client *http.Client, loginURL, username, password string) error {
 	}
 	guarded := *client
 	previousRedirect := client.CheckRedirect
+	credentialsSubmitted := false
+	stoppedAfterAuthentication := false
 	guarded.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		if req.URL.Scheme != "https" || req.URL.Host != origin.Host {
+			// CAS may issue CASTGC and redirect to a portal after a successful
+			// credential POST. We only need the CAS session, not that portal.
+			// Stop before contacting it; never replay a POST across origins.
+			if credentialsSubmitted && req.Method == http.MethodGet && req.Body == nil && hasCASTicket(guarded.Jar, origin) {
+				stoppedAfterAuthentication = true
+				return http.ErrUseLastResponse
+			}
 			return errors.New("authentication redirect left the trusted origin")
 		}
 		if previousRedirect != nil {
@@ -143,9 +152,14 @@ func loginCAS(client *http.Client, loginURL, username, password string) error {
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Referer", base.String())
+	credentialsSubmitted = true
 	resp, err = client.Do(req)
 	if err != nil {
 		return safeRequestError(err)
+	}
+	if stoppedAfterAuthentication {
+		resp.Body.Close()
+		return nil
 	}
 	body, err = readCASResponse(resp)
 	if err != nil {
@@ -163,12 +177,19 @@ func loginCAS(client *http.Client, loginURL, username, password string) error {
 			return errors.New("登录未通过，请检查账号密码，或在浏览器确认是否需要验证码")
 		}
 	}
-	if client.Jar != nil {
-		for _, cookie := range client.Jar.Cookies(base) {
+	if hasCASTicket(client.Jar, base) {
+		return nil
+	}
+	return errors.New("未取得统一认证登录凭据，请在浏览器确认登录状态或额外验证要求")
+}
+
+func hasCASTicket(jar http.CookieJar, scope *url.URL) bool {
+	if jar != nil {
+		for _, cookie := range jar.Cookies(scope) {
 			if cookie.Name == "CASTGC" && cookie.Value != "" {
-				return nil
+				return true
 			}
 		}
 	}
-	return errors.New("未取得统一认证登录凭据，请在浏览器确认登录状态或额外验证要求")
+	return false
 }
