@@ -15,7 +15,16 @@ import (
 
 func newSession() *http.Client {
 	jar, _ := cookiejar.New(nil)
-	return &http.Client{Jar: jar, Timeout: 30 * time.Second}
+	return &http.Client{Jar: jar, Timeout: 30 * time.Second, CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		// CAS 票据绑定的 service 是 http 地址；拦截明文跳转，由调用方改写为 https
+		if req.URL.Scheme != "https" {
+			return http.ErrUseLastResponse
+		}
+		if len(via) >= 10 {
+			return errors.New("重定向次数过多")
+		}
+		return nil
+	}}
 }
 
 func responseBody(resp *http.Response) (string, error) {

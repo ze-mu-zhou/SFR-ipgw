@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"sync"
 )
 
 type gatewayInfo struct {
@@ -25,28 +24,22 @@ type IpgwHandler struct {
 	client    *http.Client
 	oriInfo   gatewayInfo
 	kickReady bool
-	kickMu    sync.Mutex
 }
 
 func NewIpgwHandler() *IpgwHandler          { return &IpgwHandler{info: &model.Info{}, client: newSession()} }
 func (h *IpgwHandler) GetInfo() *model.Info { return h.info }
 func (h *IpgwHandler) Login(a *model.Account) error {
-	var b string
-	var e error
-	if a.Cookie != "" {
-		b, e = h.loginCookie(a.Cookie)
-	} else {
-		p, err := a.GetPassword()
-		if err != nil {
-			return err
-		}
-		b, e = h.login(a.Username, p)
+	p, err := a.GetPassword()
+	if err != nil {
+		return err
 	}
+	b, e := h.login(a.Username, p)
 	if e != nil {
 		return e
 	}
 	var r struct {
-		Code *int `json:"code"`
+		Code    *int   `json:"code"`
+		Message string `json:"message"`
 	}
 	if e = json.Unmarshal([]byte(b), &r); e != nil {
 		return errors.New("网关登录响应无效")
@@ -55,6 +48,9 @@ func (h *IpgwHandler) Login(a *model.Account) error {
 		return errors.New("网关登录响应缺少状态码")
 	}
 	if *r.Code != 0 {
+		if r.Message != "" {
+			return fmt.Errorf("网关登录失败：%s（代码 %d）", r.Message, *r.Code)
+		}
 		return fmt.Errorf("网关登录失败（代码 %d）", *r.Code)
 	}
 	if err := h.ParseBasicInfo(); err != nil {
@@ -64,10 +60,6 @@ func (h *IpgwHandler) Login(a *model.Account) error {
 		return errors.New("登录后网关未确认在线账号")
 	}
 	return nil
-}
-func (h *IpgwHandler) loginCookie(cookie string) (string, error) {
-	h.client.Jar.SetCookies(&url.URL{Scheme: "https", Host: "ipgw.neu.edu.cn"}, []*http.Cookie{{Name: "session_for%3Asrun_cas_php", Value: cookie, Domain: "ipgw.neu.edu.cn"}})
-	return h.requestLoginApi()
 }
 func (h *IpgwHandler) NEUAuth(u, p string) error {
 	h.kickReady = false
@@ -108,6 +100,18 @@ func (h *IpgwHandler) requestLoginApi() (string, error) {
 	r, e = h.client.Get(casLoginURL + "?" + url.Values{"service": {service}}.Encode())
 	if e != nil {
 		return "", safeRequestError(e)
+	}
+	if r.StatusCode >= 300 && r.StatusCode < 400 {
+		// 票据绑定 http service，网关按此校验；仅将传输改写为 https
+		loc, le := r.Location()
+		r.Body.Close()
+		if le != nil {
+			return "", errors.New("统一认证未返回网关票据")
+		}
+		loc.Scheme = "https"
+		if r, e = h.client.Get(loc.String()); e != nil {
+			return "", safeRequestError(e)
+		}
 	}
 	u := r.Request.URL
 	if _, e = responseBody(r); e != nil {
@@ -179,13 +183,7 @@ func (h *IpgwHandler) Logout() error {
 	if e != nil {
 		return e
 	}
-	var out struct {
-		Error string `json:"error"`
-	}
-	if json.Unmarshal([]byte(b), &out) != nil {
-		return errors.New("注销响应无效")
-	}
-	if out.Error != "ok" {
+	if strings.TrimSpace(b) != "logout_ok" {
 		return errors.New("网关拒绝了注销请求")
 	}
 	return nil
@@ -197,8 +195,6 @@ func (h *IpgwHandler) CheckConnection() (connected, loggedIn bool, err error) {
 	return h.info.IP != "", h.info.Username != "", nil
 }
 func (h *IpgwHandler) Kick(sid string) (bool, error) {
-	h.kickMu.Lock()
-	defer h.kickMu.Unlock()
 	if sid == "" {
 		return false, errors.New("需要设备会话 ID")
 	}
