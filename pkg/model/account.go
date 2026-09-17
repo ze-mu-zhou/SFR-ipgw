@@ -33,7 +33,7 @@ func (a *Account) GetPassword() (string, error) {
 }
 
 // SetPassword 将密码存入系统凭据管理器；secret 仅为兼容旧配置保留。
-// 保存成功后删除旧 CredentialRef 对应的条目（best-effort，失败不阻断）。
+// 旧凭据由存储层在配置持久化成功后清理，不能在此提前删除。
 func (a *Account) SetPassword(password string, secret []byte) error {
 	ref, err := credential.NewReference(a.Username)
 	if err != nil {
@@ -41,9 +41,6 @@ func (a *Account) SetPassword(password string, secret []byte) error {
 	}
 	if e := credential.Save(ref, a.Username, password); e != nil {
 		return e
-	}
-	if a.CredentialRef != "" && a.CredentialRef != ref {
-		_ = credential.Delete(a.CredentialRef)
 	}
 	a.CredentialRef = ref
 	a.Password = password

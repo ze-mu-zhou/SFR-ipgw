@@ -14,6 +14,7 @@ import (
 
 var saveCredential = credential.Save
 var loadCredential = credential.Load
+var deleteCredential = credential.Delete
 
 type StoreHandler struct {
 	Path   string
@@ -90,6 +91,58 @@ func (h *StoreHandler) Load() error {
 	}
 	h.Config = config
 	return nil
+}
+
+// UpdateConfig 在副本上修改配置。保存失败时保留旧配置和旧凭据，
+// 仅回收本次新建的凭据；保存成功后才清理不再引用的旧凭据。
+// warning 表示配置已经保存、但旧凭据清理失败；err 表示修改未提交。
+func (h *StoreHandler) UpdateConfig(change func(*model.Config) error) (warning, err error) {
+	if h.Config == nil {
+		return nil, errors.New("未加载配置")
+	}
+	old := h.Config
+	next := *old
+	next.Accounts = make([]*model.Account, len(old.Accounts))
+	for i, account := range old.Accounts {
+		copyAccount := *account
+		next.Accounts[i] = &copyAccount
+	}
+	err = change(&next)
+	if err == nil {
+		h.Config = &next
+		err = h.Persist()
+	}
+	if err != nil {
+		h.Config = old
+		if cleanupErr := cleanupCredentials(&next, old); cleanupErr != nil {
+			err = errors.Join(err, fmt.Errorf("清理本次新建凭据失败：%w", cleanupErr))
+		}
+		return nil, err
+	}
+	if cleanupErr := cleanupCredentials(old, &next); cleanupErr != nil {
+		warning = fmt.Errorf("配置已保存，但清理旧凭据失败：%w", cleanupErr)
+	}
+	return warning, nil
+}
+
+// 仅删除 removed 中存在、retained 中已不再引用的凭据，并对共享引用去重。
+func cleanupCredentials(removed, retained *model.Config) error {
+	keep := make(map[string]bool)
+	for _, account := range retained.Accounts {
+		keep[account.CredentialRef] = true
+	}
+	var errs []error
+	for _, account := range removed.Accounts {
+		ref := account.CredentialRef
+		if ref == "" || keep[ref] {
+			continue
+		}
+		keep[ref] = true
+		if err := deleteCredential(ref); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
 }
 
 // MigrateCredentials is explicitly invoked by the user. Decode all legacy

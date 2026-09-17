@@ -1,10 +1,6 @@
 package model
 
-import (
-	"fmt"
-
-	"github.com/ze-mu-zhou/SFR-ipgw/pkg/credential"
-)
+import "fmt"
 
 type Config struct {
 	DefaultAccount string     `json:"default_account"`
@@ -36,19 +32,13 @@ func (c *Config) GetAccount(username string) *Account {
 	return nil
 }
 
-// DelAccount 删除账号并清理其系统凭据。凭据清理失败时账号仍会被移除，
-// 由返回的 error 提示调用方。
+// DelAccount 仅修改配置；系统凭据由存储层在持久化成功后清理。
 func (c *Config) DelAccount(username string) error {
-	if c.DefaultAccount == username {
-		c.DefaultAccount = ""
-	}
 	for i, account := range c.Accounts {
 		if account.Username == username {
 			c.Accounts = append(c.Accounts[:i], c.Accounts[i+1:]...)
-			if account.CredentialRef != "" {
-				if e := credential.Delete(account.CredentialRef); e != nil {
-					return fmt.Errorf("账号已删除，但清理系统凭据失败：%w", e)
-				}
+			if c.DefaultAccount == username {
+				c.DefaultAccount = ""
 			}
 			return nil
 		}

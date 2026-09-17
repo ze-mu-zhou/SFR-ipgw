@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"runtime"
 
-	"github.com/ze-mu-zhou/SFR-ipgw/pkg/console"
 	"github.com/urfave/cli/v2"
+	"github.com/ze-mu-zhou/SFR-ipgw/pkg/console"
+	"github.com/ze-mu-zhou/SFR-ipgw/pkg/model"
 )
 
 var (
@@ -61,18 +62,20 @@ var (
 					return err
 				}
 			}
-			if err = store.Config.AddAccount(
-				username,
-				password,
-				ctx.String("secret")); err != nil {
+			warning, err := store.UpdateConfig(func(config *model.Config) error {
+				if err := config.AddAccount(username, password, ctx.String("secret")); err != nil {
+					return err
+				}
+				if ctx.Bool("default") {
+					config.SetDefaultAccount(username)
+				}
+				return nil
+			})
+			if err != nil {
 				return fmt.Errorf("添加账号失败：\n\t%v", err)
 			}
-
-			if ctx.Bool("default") {
-				store.Config.SetDefaultAccount(username)
-			}
-			if err = store.Persist(); err != nil {
-				return err
+			if warning != nil {
+				_, _ = fmt.Fprintf(ctx.App.ErrWriter, "警告：%v\n", warning)
 			}
 			console.InfoF("'%s' 已添加\n", username)
 			return nil
@@ -98,12 +101,14 @@ var (
 			}
 			username := ctx.String("username")
 
-			if err = store.Config.DelAccount(username); err != nil {
+			warning, err := store.UpdateConfig(func(config *model.Config) error {
+				return config.DelAccount(username)
+			})
+			if err != nil {
 				return fmt.Errorf("删除账号失败：\n\t%v", err)
 			}
-
-			if err = store.Persist(); err != nil {
-				return err
+			if warning != nil {
+				_, _ = fmt.Fprintf(ctx.App.ErrWriter, "警告：%v\n", warning)
 			}
 			console.InfoF("'%s' 已删除\n", username)
 			return nil
@@ -129,25 +134,33 @@ var (
 			if ctx.IsSet("secret") {
 				return fmt.Errorf("更新系统凭据不使用 --secret；旧配置请执行 config account migrate")
 			}
-			if !ctx.Bool("default") || ctx.IsSet("password") || ctx.Bool("ask-password") {
+			changePassword := !ctx.Bool("default") || ctx.IsSet("password") || ctx.Bool("ask-password")
+			var password string
+			if changePassword {
 				if runtime.GOOS != "windows" {
 					return fmt.Errorf("此平台不保存密码；请在查询时输入密码")
 				}
-				password, err := suppliedOrPromptPassword(ctx)
+				password, err = suppliedOrPromptPassword(ctx)
 				if err != nil {
 					return err
 				}
-				if err = account.SetPassword(password, nil); err != nil {
-					return fmt.Errorf("设置密码失败：\n\t%v", err)
+			}
+			warning, err := store.UpdateConfig(func(config *model.Config) error {
+				if changePassword {
+					if err := config.GetAccount(username).SetPassword(password, nil); err != nil {
+						return fmt.Errorf("设置密码失败：\n\t%v", err)
+					}
 				}
-			}
-
-			if ctx.Bool("default") {
-				store.Config.SetDefaultAccount(username)
-			}
-
-			if err = store.Persist(); err != nil {
+				if ctx.Bool("default") {
+					config.SetDefaultAccount(username)
+				}
+				return nil
+			})
+			if err != nil {
 				return err
+			}
+			if warning != nil {
+				_, _ = fmt.Fprintf(ctx.App.ErrWriter, "警告：%v\n", warning)
 			}
 			console.InfoF("'%s' 已修改\n", username)
 			return nil
