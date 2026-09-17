@@ -22,7 +22,6 @@ var (
 					configAccountDelCommand,
 					configAccountSetCommand,
 					configAccountListCommand,
-					configAccountMigrateCommand,
 				},
 				OnUsageError: onUsageError,
 			},
@@ -63,7 +62,7 @@ var (
 				}
 			}
 			warning, err := store.UpdateConfig(func(config *model.Config) error {
-				if err := config.AddAccount(username, password, ctx.String("secret")); err != nil {
+				if err := config.AddAccount(username, password); err != nil {
 					return err
 				}
 				if ctx.Bool("default") {
@@ -131,9 +130,6 @@ var (
 				return fmt.Errorf("修改账号失败：\n\t未找到 '%s'", username)
 			}
 
-			if ctx.IsSet("secret") {
-				return fmt.Errorf("更新系统凭据不使用 --secret；旧配置请执行 config account migrate")
-			}
 			changePassword := !ctx.Bool("default") || ctx.IsSet("password") || ctx.Bool("ask-password")
 			var password string
 			if changePassword {
@@ -147,7 +143,7 @@ var (
 			}
 			warning, err := store.UpdateConfig(func(config *model.Config) error {
 				if changePassword {
-					if err := config.GetAccount(username).SetPassword(password, nil); err != nil {
+					if err := config.GetAccount(username).SetPassword(password); err != nil {
 						return fmt.Errorf("设置密码失败：\n\t%v", err)
 					}
 				}
@@ -192,29 +188,3 @@ var (
 	}
 )
 
-var configAccountMigrateCommand = &cli.Command{
-	Name: "migrate", Usage: "explicitly migrate legacy encrypted passwords to the Windows credential vault",
-	Flags: []cli.Flag{&cli.StringFlag{Name: "secret", Aliases: []string{"s"}, Usage: "legacy encryption secret (empty by default)"}},
-	Action: func(ctx *cli.Context) error {
-		store, err := getStoreHandler(ctx)
-		if err != nil {
-			return err
-		}
-		count := 0
-		for _, a := range store.Config.Accounts {
-			if a.EncryptedPassword != "" {
-				count++
-			}
-		}
-		if count == 0 {
-			console.InfoL("没有需要迁移的旧密码")
-			return nil
-		}
-		if err = store.MigrateCredentials(ctx.String("secret")); err != nil {
-			return err
-		}
-		console.InfoF("已迁移 %d 个账号的密码到系统凭据管理器\n", count)
-		return nil
-	},
-	OnUsageError: onUsageError,
-}

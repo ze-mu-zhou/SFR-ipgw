@@ -25,14 +25,7 @@
 .\ipgw.exe config account add -u 学号 --default
 ```
 
-旧配置需显式迁移；若旧配置设置了 secret，迁移时传入相同值：
-
-```powershell
-.\ipgw.exe config account migrate
-.\ipgw.exe config account migrate --secret 原来的secret
-```
-
-迁移成功后才清除旧密码字段。配置文件只保留账号和凭据引用。非 Windows 系统不支持这里的凭据存储，可使用临时输入。
+配置文件只保留账号和凭据引用，密码保存在 Windows 凭据管理器。非 Windows 系统不支持这里的凭据存储，可使用临时输入。
 
 删除账号（`config account del`）会同时删除凭据管理器中的对应条目；`config account set` 修改密码后，旧凭据条目也会自动清理。
 

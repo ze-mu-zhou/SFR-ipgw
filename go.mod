@@ -3,7 +3,6 @@ module github.com/ze-mu-zhou/SFR-ipgw
 go 1.26.0
 
 require (
-	github.com/forgoer/openssl v0.0.0-20201023062029-c3112b0c8700
 	github.com/stretchr/testify v1.12.1
 	github.com/urfave/cli/v2 v2.27.7
 	golang.org/x/net v0.59.0

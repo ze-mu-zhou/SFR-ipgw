@@ -10,12 +10,12 @@ import (
 
 func TestAccountChangesPreserveOldCredentialBeforeCommit(t *testing.T) {
 	a := &Account{Username: "ipgw-test-uncommitted-account"}
-	if err := a.SetPassword("test-only-old-password", nil); err != nil {
+	if err := a.SetPassword("test-only-old-password"); err != nil {
 		t.Fatal(err)
 	}
 	oldRef := a.CredentialRef
 	t.Cleanup(func() { credential.Delete(oldRef) })
-	if err := a.SetPassword("test-only-new-password", nil); err != nil {
+	if err := a.SetPassword("test-only-new-password"); err != nil {
 		t.Fatal(err)
 	}
 	newRef := a.CredentialRef

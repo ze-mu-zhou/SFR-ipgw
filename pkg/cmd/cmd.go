@@ -37,11 +37,6 @@ var (
 		HideVersion: true,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
-				Name:    "secret",
-				Aliases: []string{"s"},
-				Hidden:  true,
-			},
-			&cli.StringFlag{
 				Name:    "config",
 				Aliases: []string{"f"},
 				Usage:   "load configuration from specific `file`",
@@ -64,7 +59,6 @@ func loginUseDefaultAccount(ctx *cli.Context) error {
 		return errors.New("没有已保存的账号")
 	}
 	console.InfoF("使用账号 '%s'\n", account.Username)
-	account.Secret = ctx.String("secret")
 
 	if err = login(handler.NewIpgwHandler(), account); err != nil {
 		return fmt.Errorf("登录失败：\n\t%v", err)
@@ -74,7 +68,7 @@ func loginUseDefaultAccount(ctx *cli.Context) error {
 
 func getAccountByContext(ctx *cli.Context) (account *model.Account, err error) {
 	if c := ctx.String("cookie"); c != "" {
-		if ctx.IsSet("password") || ctx.Bool("ask-password") || ctx.IsSet("username") || ctx.IsSet("secret") {
+		if ctx.IsSet("password") || ctx.Bool("ask-password") || ctx.IsSet("username") {
 			return nil, errors.New("Cookie 登录不能同时指定账号或密码参数")
 		}
 		return &model.Account{Cookie: c}, nil
@@ -105,13 +99,12 @@ func getAccountByContext(ctx *cli.Context) (account *model.Account, err error) {
 			account = &model.Account{Username: username}
 		}
 	}
-	if ctx.IsSet("password") || ctx.Bool("ask-password") || (account.EncryptedPassword == "" && account.CredentialRef == "" && account.Password == "") {
+	if ctx.IsSet("password") || ctx.Bool("ask-password") || (account.CredentialRef == "" && account.Password == "") {
 		account.Password, err = suppliedOrPromptPassword(ctx)
 		if err != nil {
 			return nil, err
 		}
 	}
-	account.Secret = ctx.String("secret")
 	return account, nil
 }
 

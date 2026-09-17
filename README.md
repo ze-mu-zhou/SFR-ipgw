@@ -6,7 +6,7 @@
 
 ## 构建与使用
 
-从本仓库获取代码；完整凭据迁移、计费比较和构建说明见 [Windows 使用说明](WINDOWS_USAGE.md)。
+从本仓库获取代码；完整凭据管理、计费比较和构建说明见 [Windows 使用说明](WINDOWS_USAGE.md)。
 
 Windows PowerShell：
 

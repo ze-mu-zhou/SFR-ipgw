@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/ze-mu-zhou/SFR-ipgw/pkg/credential"
 	"github.com/ze-mu-zhou/SFR-ipgw/pkg/model"
-	"github.com/ze-mu-zhou/SFR-ipgw/pkg/utils"
 	"os"
 	"path/filepath"
 	"strings"
@@ -145,48 +144,3 @@ func cleanupCredentials(removed, retained *model.Config) error {
 	return errors.Join(errs...)
 }
 
-// MigrateCredentials is explicitly invoked by the user. Decode all legacy
-// passwords before writing, and only replace the configuration after every
-// credential has been stored and read back successfully.
-func (h *StoreHandler) MigrateCredentials(secret string) error {
-	if h.Config == nil {
-		return errors.New("未加载配置")
-	}
-	copyConfig := *h.Config
-	copyConfig.Accounts = make([]*model.Account, len(h.Config.Accounts))
-	passwords := map[int]string{}
-	for i, a := range h.Config.Accounts {
-		c := *a
-		copyConfig.Accounts[i] = &c
-		if a.EncryptedPassword != "" {
-			p, e := utils.Decrypt(a.EncryptedPassword, []byte(secret))
-			if e != nil || p == "" {
-				return errors.New("旧密码解密失败，配置未更改")
-			}
-			passwords[i] = p
-		}
-	}
-	for i, p := range passwords {
-		a := copyConfig.Accounts[i]
-		ref, err := credential.NewReference(a.Username)
-		if err != nil {
-			return err
-		}
-		if e := saveCredential(ref, a.Username, p); e != nil {
-			return e
-		}
-		saved, e := loadCredential(ref)
-		if e != nil || saved != p {
-			return errors.New("凭据校验失败，配置未更改")
-		}
-		a.CredentialRef = ref
-		a.EncryptedPassword = ""
-	}
-	old := h.Config
-	h.Config = &copyConfig
-	if e := h.Persist(); e != nil {
-		h.Config = old
-		return e
-	}
-	return nil
-}

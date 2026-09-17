@@ -7,7 +7,7 @@ type Config struct {
 	Accounts       []*Account `json:"accounts"`
 }
 
-func (c *Config) AddAccount(username, password, secret string) error {
+func (c *Config) AddAccount(username, password string) error {
 	for _, account := range c.Accounts {
 		if account.Username == username {
 			return fmt.Errorf("账号 %s 已存在", username)
@@ -15,7 +15,7 @@ func (c *Config) AddAccount(username, password, secret string) error {
 	}
 	a := &Account{Username: username}
 	if password != "" {
-		if err := a.SetPassword(password, nil); err != nil {
+		if err := a.SetPassword(password); err != nil {
 			return err
 		}
 	}

@@ -14,7 +14,6 @@ func credentialFlags(cookie bool) []cli.Flag {
 		&cli.StringFlag{Name: "username", Aliases: []string{"u"}, Usage: "student number (uses stored default when omitted)"},
 		&cli.StringFlag{Name: "password", Aliases: []string{"p"}, Usage: "password; omit for hidden terminal input or stored credentials"},
 		&cli.BoolFlag{Name: "ask-password", Usage: "prompt for password instead of using a saved credential"},
-		&cli.StringFlag{Name: "secret", Aliases: []string{"s"}, Usage: "secret for a legacy encrypted account"},
 	}
 	if cookie {
 		flags = append(flags, &cli.StringFlag{Name: "cookie", Aliases: []string{"c"}, Usage: "existing campus gateway session cookie"})
