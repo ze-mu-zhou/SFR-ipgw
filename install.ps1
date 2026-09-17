@@ -16,12 +16,22 @@ $Target = if ([System.Environment]::Is64BitOperatingSystem) {
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 $DownloadURL = "https://github.com/ze-mu-zhou/SFR-ipgw/releases/latest/download/ipgw-${Target}.zip"
+$ChecksumsURL = "https://github.com/ze-mu-zhou/SFR-ipgw/releases/latest/download/checksums.txt"
 
 if (!(Test-Path $BinDir)) {
     New-Item $BinDir -ItemType Directory | Out-Null
 }
 
 Invoke-WebRequest $DownloadURL -OutFile $DownloadedZip -UseBasicParsing
+
+$Expected = ((Invoke-WebRequest $ChecksumsURL -UseBasicParsing).Content -split "`n" |
+    Where-Object { $_.Trim() -match "ipgw-$Target\.zip$" } |
+    ForEach-Object { ($_ -split '\s+')[0] })
+$Actual = (Get-FileHash $DownloadedZip -Algorithm SHA256).Hash
+if (-not $Expected -or $Actual -ine $Expected) {
+    Remove-Item $DownloadedZip -ErrorAction SilentlyContinue
+    throw "Checksum verification failed for ipgw-$Target.zip"
+}
 
 if (Get-Command Expand-Archive -ErrorAction SilentlyContinue) {
     Expand-Archive $DownloadedZip -Destination $BinDir -Force

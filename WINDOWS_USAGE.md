@@ -55,6 +55,6 @@
 .\scripts\build.ps1 -Release -ReleaseRepo ze-mu-zhou/SFR-ipgw -SourceRepo ze-mu-zhou/SFR-ipgw
 ```
 
-发行资产名称为 `ipgw-windows-amd64.zip`（其他平台使用对应 GOOS/GOARCH），压缩包根目录包含 `ipgw.exe`。更新器选择固定版本的资产，要求 GitHub API 提供 SHA-256 摘要，校验下载内容及 Go 可执行文件的平台元数据后才替换。缺少摘要的旧发行包需手动更新。
+发行资产名称为 `ipgw-windows-amd64.zip`（其他平台使用对应 GOOS/GOARCH），压缩包根目录包含 `ipgw.exe`；发行同时提供 `checksums.txt`，安装脚本校验 SHA-256 不匹配时拒绝安装。更新器选择固定版本的资产，要求 GitHub API 提供 SHA-256 摘要，校验下载内容及 Go 可执行文件的平台元数据后才替换。缺少摘要的旧发行包需手动更新。
 
 替换失败会恢复原程序；若恢复也失败，错误中提供备份路径。成功后保留旧程序备份并显示路径，退出更新进程后可自行删除备份。更新不会执行下载包中的程序或脚本。

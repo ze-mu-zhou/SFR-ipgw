@@ -7,6 +7,15 @@ if ! command -v unzip >/dev/null; then
 	exit 1
 fi
 
+if command -v sha256sum >/dev/null; then
+	sha256() { sha256sum "$1" | awk '{print $1}'; }
+elif command -v shasum >/dev/null; then
+	sha256() { shasum -a 256 "$1" | awk '{print $1}'; }
+else
+	echo "Error: sha256sum or shasum is required to install ipgw." 1>&2
+	exit 1
+fi
+
 if [ "$OS" = "Windows_NT" ]; then
 	target="windows-amd64"
 else
@@ -24,6 +33,7 @@ else
 fi
 
 download_url="https://github.com/ze-mu-zhou/SFR-ipgw/releases/latest/download/ipgw-${target}.zip"
+checksums_url="https://github.com/ze-mu-zhou/SFR-ipgw/releases/latest/download/checksums.txt"
 
 bin_dir="/usr/local/bin"
 target_path="$bin_dir/ipgw"
@@ -33,6 +43,13 @@ if [ ! -d "$bin_dir" ]; then
 fi
 
 curl --fail --location --progress-bar --output "$target_path.zip" "$download_url"
+expected=$(curl --fail --silent --location "$checksums_url" | awk -v f="ipgw-${target}.zip" '{name=$2; sub(/^\*/, "", name); if (name == f) print $1}')
+actual=$(sha256 "$target_path.zip")
+if [ -z "$expected" ] || [ "$actual" != "$expected" ]; then
+	echo "Error: checksum verification failed for ipgw-${target}.zip" 1>&2
+	rm -f "$target_path.zip"
+	exit 1
+fi
 unzip -d "$bin_dir" -o "$target_path.zip"
 chmod +x "$target_path"
 rm "$target_path.zip"

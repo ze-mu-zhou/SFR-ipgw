@@ -15,4 +15,7 @@ do
     cd "$target" && zip -q "$name-$target.zip" ./* && mv "$name-$target.zip" "$release_dir" && cd ..
 done
 
+cd "$release_dir" || exit
+sha256sum -- *.zip > checksums.txt
+
 echo "done."
