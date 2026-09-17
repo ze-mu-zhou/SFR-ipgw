@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -33,8 +34,9 @@ type releaseInfo struct {
 	Assets     []releaseAsset `json:"assets"`
 }
 type UpdateHandler struct {
-	client  *http.Client
-	release *releaseInfo
+	apiClient      *http.Client
+	downloadClient *http.Client
+	release        *releaseInfo
 }
 type downloader struct {
 	io.Reader
@@ -51,16 +53,31 @@ func (d *downloader) Read(p []byte) (int, error) {
 	}
 	return n, e
 }
+func httpsOnlyRedirect(req *http.Request, via []*http.Request) error {
+	if req.URL.Scheme != "https" {
+		return fmt.Errorf("更新重定向到非 HTTPS 地址，已拒绝")
+	}
+	if len(via) >= 10 {
+		return fmt.Errorf("更新重定向次数过多")
+	}
+	return nil
+}
+
+// API 检查使用总超时；下载只限制连接和响应头，响应体读取不设总时长，
+// 慢速网络下也能完成大文件下载。
 func NewUpdateHandler() *UpdateHandler {
-	return &UpdateHandler{client: &http.Client{Timeout: 90 * time.Second, CheckRedirect: func(req *http.Request, via []*http.Request) error {
-		if req.URL.Scheme != "https" {
-			return fmt.Errorf("更新重定向到非 HTTPS 地址，已拒绝")
-		}
-		if len(via) >= 10 {
-			return fmt.Errorf("更新重定向次数过多")
-		}
-		return nil
-	}}}
+	return &UpdateHandler{
+		apiClient: &http.Client{Timeout: 30 * time.Second, CheckRedirect: httpsOnlyRedirect},
+		downloadClient: &http.Client{
+			CheckRedirect: httpsOnlyRedirect,
+			Transport: &http.Transport{
+				Proxy:                 http.ProxyFromEnvironment,
+				DialContext:           (&net.Dialer{Timeout: 30 * time.Second}).DialContext,
+				TLSHandshakeTimeout:   30 * time.Second,
+				ResponseHeaderTimeout: 60 * time.Second,
+			},
+		},
+	}
 }
 
 var repositoryPattern = regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`)
@@ -76,7 +93,7 @@ func (u *UpdateHandler) CheckLatestVersion() (bool, error) {
 		return false, e
 	}
 	u.release = nil
-	resp, e := u.client.Get("https://api.github.com/repos/" + ipgw.ReleaseRepo + "/releases/latest")
+	resp, e := u.apiClient.Get("https://api.github.com/repos/" + ipgw.ReleaseRepo + "/releases/latest")
 	if e != nil {
 		return false, fmt.Errorf("检查最新版本失败：%w", e)
 	}
@@ -99,7 +116,7 @@ func (u *UpdateHandler) download(rawURL string) (path string, err error) {
 	if e != nil || parsed.Scheme != "https" || parsed.Host != "github.com" || parsed.User != nil || !strings.HasPrefix(parsed.Path, "/"+ipgw.ReleaseRepo+"/releases/download/") {
 		return "", fmt.Errorf("下载地址不在配置的发布仓库内")
 	}
-	resp, e := u.client.Get(rawURL)
+	resp, e := u.downloadClient.Get(rawURL)
 	if e != nil {
 		return "", e
 	}

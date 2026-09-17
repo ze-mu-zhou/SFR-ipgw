@@ -18,6 +18,11 @@ type updateTransport func(*http.Request) (*http.Response, error)
 
 func (f updateTransport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
+func testUpdateHandler(rt http.RoundTripper) *UpdateHandler {
+	c := &http.Client{Transport: rt}
+	return &UpdateHandler{apiClient: c, downloadClient: c}
+}
+
 type trackedBody struct {
 	io.Reader
 	closed bool
@@ -37,7 +42,7 @@ func TestLocalUpdateDoesNotContactNetwork(t *testing.T) {
 	old := ipgw.BuildKind
 	ipgw.BuildKind = "local"
 	defer func() { ipgw.BuildKind = old }()
-	u := &UpdateHandler{client: &http.Client{Transport: updateTransport(func(*http.Request) (*http.Response, error) { t.Fatal("local build contacted network"); return nil, nil })}}
+	u := testUpdateHandler(updateTransport(func(*http.Request) (*http.Response, error) { t.Fatal("local build contacted network"); return nil, nil }))
 	if _, e := u.CheckLatestVersion(); e == nil {
 		t.Fatal("local update allowed")
 	}
@@ -50,9 +55,9 @@ func TestDownloadStatusAndUnknownLength(t *testing.T) {
 	for _, status := range []int{200, 404, 500} {
 		t.Run(http.StatusText(status), func(t *testing.T) {
 			body := &trackedBody{Reader: strings.NewReader("zip bytes")}
-			u := &UpdateHandler{client: &http.Client{Transport: updateTransport(func(*http.Request) (*http.Response, error) {
+			u := testUpdateHandler(updateTransport(func(*http.Request) (*http.Response, error) {
 				return &http.Response{StatusCode: status, Body: body, ContentLength: -1}, nil
-			})}}
+			}))
 			path, e := u.download("https://github.com/test/ipgw/releases/download/v1.1.0/ipgw.zip")
 			if path != "" {
 				defer os.Remove(path)
@@ -75,9 +80,9 @@ func TestDownloadStatusAndUnknownLength(t *testing.T) {
 func TestDownloadFailureRemovesTemporaryFile(t *testing.T) {
 	releaseBuild(t)
 	body := &trackedBody{Reader: strings.NewReader("short")}
-	u := &UpdateHandler{client: &http.Client{Transport: updateTransport(func(*http.Request) (*http.Response, error) {
+	u := testUpdateHandler(updateTransport(func(*http.Request) (*http.Response, error) {
 		return &http.Response{StatusCode: 200, Body: body, ContentLength: 100}, nil
-	})}}
+	}))
 	path, e := u.download("https://github.com/test/ipgw/releases/download/v1/ipgw.zip")
 	if e == nil {
 		t.Fatal("short download accepted")
@@ -149,9 +154,9 @@ func TestReleaseAPIRejectsFailureAndMalformedVersion(t *testing.T) {
 		status int
 		body   string
 	}{{500, "{}"}, {200, `{"tag_name":"garbage"}`}, {200, `{"tag_name":"v1.2.0","prerelease":true}`}} {
-		u := &UpdateHandler{client: &http.Client{Transport: updateTransport(func(*http.Request) (*http.Response, error) {
+		u := testUpdateHandler(updateTransport(func(*http.Request) (*http.Response, error) {
 			return &http.Response{StatusCode: c.status, Body: io.NopCloser(strings.NewReader(c.body))}, nil
-		})}}
+		}))
 		if _, e := u.CheckLatestVersion(); e == nil {
 			t.Fatalf("accepted invalid response: %+v", c)
 		}
