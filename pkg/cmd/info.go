@@ -41,7 +41,7 @@ type infoReport struct {
 
 var InfoCommand = &cli.Command{
 	Name: "info", Usage: "query campus billing information", UseShortOptionHandling: true,
-	Flags: append(credentialFlags(false),
+	Flags: append(credentialFlags(),
 		&cli.BoolFlag{Name: "all", Aliases: []string{"a"}, Usage: "query all information (first page of each record type)"},
 		&cli.BoolFlag{Name: "package", Aliases: []string{"i"}, Usage: "query traffic, balance and package"},
 		&cli.BoolFlag{Name: "device", Aliases: []string{"d"}, Usage: "query online devices"},

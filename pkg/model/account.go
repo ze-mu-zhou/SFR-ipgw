@@ -8,7 +8,6 @@ import (
 type Account struct {
 	Username      string `json:"username"`
 	Password      string `json:"-"`
-	Cookie        string `json:"-"`
 	CredentialRef string `json:"credential_ref,omitempty"`
 }
 

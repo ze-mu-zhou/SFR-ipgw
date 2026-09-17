@@ -9,16 +9,11 @@ import (
 	"golang.org/x/term"
 )
 
-func credentialFlags(cookie bool) []cli.Flag {
-	flags := []cli.Flag{
+func credentialFlags() []cli.Flag {
+	return []cli.Flag{
 		&cli.StringFlag{Name: "username", Aliases: []string{"u"}, Usage: "student number (uses stored default when omitted)"},
-		&cli.StringFlag{Name: "password", Aliases: []string{"p"}, Usage: "password; omit for hidden terminal input or stored credentials"},
 		&cli.BoolFlag{Name: "ask-password", Usage: "prompt for password instead of using a saved credential"},
 	}
-	if cookie {
-		flags = append(flags, &cli.StringFlag{Name: "cookie", Aliases: []string{"c"}, Usage: "existing campus gateway session cookie"})
-	}
-	return flags
 }
 
 func promptPassword(ctx *cli.Context) (string, error) {
@@ -41,17 +36,4 @@ func promptPassword(ctx *cli.Context) (string, error) {
 		return "", errors.New("密码不能为空")
 	}
 	return string(value), nil
-}
-
-func suppliedOrPromptPassword(ctx *cli.Context) (string, error) {
-	if ctx.Bool("ask-password") && ctx.IsSet("password") {
-		return "", errors.New("--ask-password 与 --password 不能同时使用")
-	}
-	if ctx.IsSet("password") {
-		if ctx.String("password") == "" {
-			return "", errors.New("密码不能为空")
-		}
-		return ctx.String("password"), nil
-	}
-	return promptPassword(ctx)
 }

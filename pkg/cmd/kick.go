@@ -13,7 +13,7 @@ var (
 		Usage:                  "logout any specific device by SID",
 		ArgsUsage:              "[sid list]",
 		UseShortOptionHandling: true,
-		Flags:                  credentialFlags(false),
+		Flags:                  credentialFlags(),
 		Action: func(ctx *cli.Context) error {
 			sids := ctx.Args().Slice()
 			if len(sids) == 0 {

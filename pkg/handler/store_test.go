@@ -31,7 +31,7 @@ func TestStoreRejectsCorruptConfig(t *testing.T) {
 func TestPersistOnlySerializableCredentials(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config")
 	s, _ := NewStoreHandler(path)
-	s.Config = &model.Config{Accounts: []*model.Account{{Username: "test", Password: "sensitive", Cookie: "cookie", CredentialRef: "vault-ref"}}}
+	s.Config = &model.Config{Accounts: []*model.Account{{Username: "test", Password: "sensitive", CredentialRef: "vault-ref"}}}
 	if e := s.Persist(); e != nil {
 		t.Fatal(e)
 	}
@@ -40,7 +40,7 @@ func TestPersistOnlySerializableCredentials(t *testing.T) {
 		t.Fatal(e)
 	}
 	a := s2.Config.Accounts[0]
-	if a.Password != "" || a.Cookie != "" || a.CredentialRef != "vault-ref" {
+	if a.Password != "" || a.CredentialRef != "vault-ref" {
 		t.Fatal("invalid persisted account")
 	}
 }

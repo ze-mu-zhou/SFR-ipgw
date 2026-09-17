@@ -67,18 +67,9 @@ func loginUseDefaultAccount(ctx *cli.Context) error {
 }
 
 func getAccountByContext(ctx *cli.Context) (account *model.Account, err error) {
-	if c := ctx.String("cookie"); c != "" {
-		if ctx.IsSet("password") || ctx.Bool("ask-password") || ctx.IsSet("username") {
-			return nil, errors.New("Cookie 登录不能同时指定账号或密码参数")
-		}
-		return &model.Account{Cookie: c}, nil
-	}
 	username := ctx.String("username")
-	if ctx.Bool("ask-password") && ctx.IsSet("password") {
-		return nil, errors.New("--ask-password 与 --password 不能同时使用")
-	}
-	if username != "" && (ctx.IsSet("password") || ctx.Bool("ask-password")) {
-		password, err := suppliedOrPromptPassword(ctx)
+	if username != "" && ctx.Bool("ask-password") {
+		password, err := promptPassword(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -99,8 +90,8 @@ func getAccountByContext(ctx *cli.Context) (account *model.Account, err error) {
 			account = &model.Account{Username: username}
 		}
 	}
-	if ctx.IsSet("password") || ctx.Bool("ask-password") || (account.CredentialRef == "" && account.Password == "") {
-		account.Password, err = suppliedOrPromptPassword(ctx)
+	if ctx.Bool("ask-password") || (account.CredentialRef == "" && account.Password == "") {
+		account.Password, err = promptPassword(ctx)
 		if err != nil {
 			return nil, err
 		}

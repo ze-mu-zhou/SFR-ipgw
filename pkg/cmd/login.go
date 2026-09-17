@@ -14,7 +14,7 @@ var (
 	LoginCommand = &cli.Command{
 		Name:  "login",
 		Usage: "login ipgw",
-		Flags: append(credentialFlags(true), &cli.BoolFlag{
+		Flags: append(credentialFlags(), &cli.BoolFlag{
 			Name: "info", Aliases: []string{"i"}, Usage: "output account info after login successfully",
 		}),
 		Action: func(ctx *cli.Context) error {

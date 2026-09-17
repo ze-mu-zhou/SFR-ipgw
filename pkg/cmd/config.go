@@ -32,7 +32,7 @@ var (
 	configAccountAddCommand = &cli.Command{
 		Name:  "add",
 		Usage: "add account into config",
-		Flags: append(credentialFlags(false),
+		Flags: append(credentialFlags(),
 			&cli.BoolFlag{Name: "default", Usage: "set as default account"},
 			&cli.BoolFlag{Name: "no-store-password", Usage: "save account name only; prompt each time"},
 		),
@@ -49,14 +49,14 @@ var (
 				return fmt.Errorf("账号已存在，请使用 config account set")
 			}
 			password := ""
-			if runtime.GOOS != "windows" && (ctx.IsSet("password") || ctx.Bool("ask-password")) {
+			if runtime.GOOS != "windows" && ctx.Bool("ask-password") {
 				return fmt.Errorf("此平台不保存密码；请仅保存账号，查询时在终端输入密码")
 			}
-			if ctx.Bool("no-store-password") && (ctx.IsSet("password") || ctx.Bool("ask-password")) {
-				return fmt.Errorf("--no-store-password 不能与密码参数同时使用")
+			if ctx.Bool("no-store-password") && ctx.Bool("ask-password") {
+				return fmt.Errorf("--no-store-password 不能与 --ask-password 同时使用")
 			}
 			if !ctx.Bool("no-store-password") && runtime.GOOS == "windows" {
-				password, err = suppliedOrPromptPassword(ctx)
+				password, err = promptPassword(ctx)
 				if err != nil {
 					return err
 				}
@@ -118,7 +118,7 @@ var (
 	configAccountSetCommand = &cli.Command{
 		Name:  "set",
 		Usage: "edit account in config",
-		Flags: append(credentialFlags(false), &cli.BoolFlag{Name: "default", Usage: "set as default account"}),
+		Flags: append(credentialFlags(), &cli.BoolFlag{Name: "default", Usage: "set as default account"}),
 		Action: func(ctx *cli.Context) error {
 			store, err := getStoreHandler(ctx)
 			if err != nil {
@@ -130,13 +130,13 @@ var (
 				return fmt.Errorf("修改账号失败：\n\t未找到 '%s'", username)
 			}
 
-			changePassword := !ctx.Bool("default") || ctx.IsSet("password") || ctx.Bool("ask-password")
+			changePassword := !ctx.Bool("default") || ctx.Bool("ask-password")
 			var password string
 			if changePassword {
 				if runtime.GOOS != "windows" {
 					return fmt.Errorf("此平台不保存密码；请在查询时输入密码")
 				}
-				password, err = suppliedOrPromptPassword(ctx)
+				password, err = promptPassword(ctx)
 				if err != nil {
 					return err
 				}

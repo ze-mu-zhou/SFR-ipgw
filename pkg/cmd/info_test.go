@@ -82,10 +82,31 @@ func TestPartialQueryFailureAndEmptyRecords(t *testing.T) {
 	}
 }
 
-func TestExplicitCredentialsDoNotReadConfig(t *testing.T) {
-	ctx := infoContext(t, "--username", "test-user", "--password", "test-only")
+func TestStoredAccountUsedWithoutPrompt(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	if err := os.WriteFile(configPath, []byte(`{"accounts":[{"username":"test-user","credential_ref":"ipgw/account/test"}]}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	ctx := accountContext(t, configPath, "--username", "test-user")
+	a, err := getAccountByContext(ctx)
+	if err != nil || a.Username != "test-user" || a.CredentialRef != "ipgw/account/test" {
+		t.Fatalf("stored account not used: %v", err)
+	}
+}
+
+func TestUnknownAccountRequiresInteractivePassword(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "missing-parent", "config.json")
+	ctx := accountContext(t, configPath, "--username", "unknown-user")
+	if _, err := getAccountByContext(ctx); err == nil {
+		t.Fatal("unknown account without terminal accepted")
+	}
+}
+
+func accountContext(t *testing.T, configPath string, args ...string) *cli.Context {
+	t.Helper()
+	ctx := infoContext(t)
 	set := flag.NewFlagSet("global", flag.ContinueOnError)
-	set.String("config", filepath.Join(t.TempDir(), "missing-parent", "config.json"), "")
+	set.String("config", configPath, "")
 	parent := cli.NewContext(ctx.App, set, nil)
 	local := flag.NewFlagSet("info", flag.ContinueOnError)
 	for _, f := range InfoCommand.Flags {
@@ -93,14 +114,10 @@ func TestExplicitCredentialsDoNotReadConfig(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := local.Parse([]string{"--username", "test-user", "--password", "test-only"}); err != nil {
+	if err := local.Parse(args); err != nil {
 		t.Fatal(err)
 	}
-	ctx = cli.NewContext(ctx.App, local, parent)
-	a, err := getAccountByContext(ctx)
-	if err != nil || a.Username != "test-user" || a.Password != "test-only" {
-		t.Fatalf("explicit credentials read config: %v", err)
-	}
+	return cli.NewContext(ctx.App, local, parent)
 }
 
 func TestSnapshotFileDoesNotOverwrite(t *testing.T) {
