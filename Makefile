@@ -14,7 +14,7 @@ RELEASE_DIR=release
 GO_BUILD=CGO_ENABLED=0 go build -trimpath -ldflags '-w -s -X "github.com/ze-mu-zhou/SFR-ipgw.Version=${BUILD_VERSION}" \
 		-X "github.com/ze-mu-zhou/SFR-ipgw.Build=${BUILD}" -X "github.com/ze-mu-zhou/SFR-ipgw.Repo=${REPO}" -X "github.com/ze-mu-zhou/SFR-ipgw.Commit=${COMMIT}" -X "github.com/ze-mu-zhou/SFR-ipgw.BuildKind=${BUILD_KIND}" -X "github.com/ze-mu-zhou/SFR-ipgw.ReleaseRepo=${RELEASE_REPO}" -X "github.com/ze-mu-zhou/SFR-ipgw.UpdateEnabled=${UPDATE_ENABLED}"'
 
-.PHONY: clean
+.PHONY: all clean release
 
 PLATFORM_LIST = \
 	darwin-amd64 \
@@ -69,7 +69,7 @@ windows-arm64:
 	GOARCH=arm64 GOOS=windows $(GO_BUILD) -o $(BUILD_DIR)/$@/$(NAME).exe ${MAIN_ENTRY}
 
 release: all
-	bash scripts/release.sh $(NAME) $(BUILD_DIR) $(RELEASE_DIR)
+	bash scripts/release.sh "$(NAME)" "$(BUILD_DIR)" "$(RELEASE_DIR)" $(PLATFORM_LIST)
 
 clean:
 	rm -rf $(BUILD_DIR)

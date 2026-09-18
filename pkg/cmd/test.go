@@ -1,15 +1,16 @@
 package cmd
 
 import (
+	"github.com/urfave/cli/v2"
 	"github.com/ze-mu-zhou/SFR-ipgw/pkg/console"
 	"github.com/ze-mu-zhou/SFR-ipgw/pkg/handler"
-	"github.com/urfave/cli/v2"
 )
 
 var (
 	TestCommand = &cli.Command{
-		Name:  "test",
-		Usage: "test whether is connected to the campus network and whether has logged in ipgw",
+		Name:   "test",
+		Usage:  "test whether is connected to the campus network and whether has logged in ipgw",
+		Before: rejectPositionalArguments,
 		Action: func(ctx *cli.Context) error {
 			h := handler.NewIpgwHandler()
 			connected, loggedIn, err := h.CheckConnection()

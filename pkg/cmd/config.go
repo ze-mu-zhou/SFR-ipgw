@@ -11,12 +11,14 @@ import (
 
 var (
 	ConfigCommand = &cli.Command{
-		Name:  "config",
-		Usage: "manage config",
+		Name:   "config",
+		Usage:  "manage config",
+		Action: showCommandGroupHelp,
 		Subcommands: []*cli.Command{
 			{
-				Name:  "account",
-				Usage: "manage accounts stored in config",
+				Name:   "account",
+				Usage:  "manage accounts stored in config",
+				Action: showCommandGroupHelp,
 				Subcommands: []*cli.Command{
 					configAccountAddCommand,
 					configAccountDelCommand,
@@ -30,8 +32,9 @@ var (
 	}
 
 	configAccountAddCommand = &cli.Command{
-		Name:  "add",
-		Usage: "add account into config",
+		Name:   "add",
+		Usage:  "add account into config",
+		Before: rejectPositionalArguments,
 		Flags: append(credentialFlags(),
 			&cli.BoolFlag{Name: "default", Usage: "set as default account"},
 			&cli.BoolFlag{Name: "no-store-password", Usage: "save account name only; prompt each time"},
@@ -83,8 +86,9 @@ var (
 	}
 
 	configAccountDelCommand = &cli.Command{
-		Name:  "del",
-		Usage: "delete account from config",
+		Name:   "del",
+		Usage:  "delete account from config",
+		Before: rejectPositionalArguments,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:     "username",
@@ -116,9 +120,10 @@ var (
 	}
 
 	configAccountSetCommand = &cli.Command{
-		Name:  "set",
-		Usage: "edit account in config",
-		Flags: append(credentialFlags(), &cli.BoolFlag{Name: "default", Usage: "set as default account"}),
+		Name:   "set",
+		Usage:  "edit account in config",
+		Before: rejectPositionalArguments,
+		Flags:  append(credentialFlags(), &cli.BoolFlag{Name: "default", Usage: "set as default account"}),
 		Action: func(ctx *cli.Context) error {
 			store, err := getStoreHandler(ctx)
 			if err != nil {
@@ -168,6 +173,7 @@ var (
 		Name:    "list",
 		Aliases: []string{"ls"},
 		Usage:   "list accounts in config",
+		Before:  rejectPositionalArguments,
 		Action: func(ctx *cli.Context) error {
 			store, err := getStoreHandler(ctx)
 			if err != nil {
@@ -187,4 +193,3 @@ var (
 		OnUsageError: onUsageError,
 	}
 )
-

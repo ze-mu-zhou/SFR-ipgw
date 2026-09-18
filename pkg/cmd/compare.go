@@ -7,14 +7,17 @@ import (
 	"io"
 	"os"
 
-	"github.com/ze-mu-zhou/SFR-ipgw/pkg/model"
 	"github.com/urfave/cli/v2"
+	"github.com/ze-mu-zhou/SFR-ipgw/pkg/model"
 )
 
 var CompareCommand = &cli.Command{
 	Name: "compare", Usage: "compare two saved traffic snapshots without accessing the network", ArgsUsage: "before.json after.json",
 	Flags: []cli.Flag{&cli.BoolFlag{Name: "json", Usage: "write JSON result"}},
 	Action: func(ctx *cli.Context) error {
+		if err := rejectMisplacedOptions(ctx); err != nil {
+			return err
+		}
 		if ctx.NArg() != 2 {
 			return errors.New("用法：ipgw compare [--json] before.json after.json")
 		}

@@ -2,15 +2,16 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/urfave/cli/v2"
 	"github.com/ze-mu-zhou/SFR-ipgw/pkg/console"
 	"github.com/ze-mu-zhou/SFR-ipgw/pkg/handler"
-	"github.com/urfave/cli/v2"
 )
 
 var (
 	UpdateCommand = &cli.Command{
-		Name:  "update",
-		Usage: "check latest version of ipgw and update",
+		Name:   "update",
+		Usage:  "check latest version of ipgw and update",
+		Before: rejectPositionalArguments,
 		Action: func(ctx *cli.Context) error {
 			h := handler.NewUpdateHandler()
 			newer, err := h.CheckLatestVersion()

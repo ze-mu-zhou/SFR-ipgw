@@ -4,16 +4,17 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/urfave/cli/v2"
 	"github.com/ze-mu-zhou/SFR-ipgw/pkg/console"
 	"github.com/ze-mu-zhou/SFR-ipgw/pkg/handler"
 	"github.com/ze-mu-zhou/SFR-ipgw/pkg/model"
-	"github.com/urfave/cli/v2"
 )
 
 var (
 	LoginCommand = &cli.Command{
-		Name:  "login",
-		Usage: "login ipgw",
+		Name:   "login",
+		Usage:  "login ipgw",
+		Before: rejectPositionalArguments,
 		Flags: append(credentialFlags(), &cli.BoolFlag{
 			Name: "info", Aliases: []string{"i"}, Usage: "output account info after login successfully",
 		}),

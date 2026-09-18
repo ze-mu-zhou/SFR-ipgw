@@ -2,9 +2,9 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/urfave/cli/v2"
 	"github.com/ze-mu-zhou/SFR-ipgw/pkg/console"
 	"github.com/ze-mu-zhou/SFR-ipgw/pkg/handler"
-	"github.com/urfave/cli/v2"
 )
 
 var (
@@ -14,11 +14,9 @@ var (
 		ArgsUsage:              "[sid list]",
 		UseShortOptionHandling: true,
 		Flags:                  credentialFlags(),
+		Before:                 validateKickArguments,
 		Action: func(ctx *cli.Context) error {
 			sids := ctx.Args().Slice()
-			if len(sids) == 0 {
-				return fmt.Errorf("请指定要下线的设备 SID")
-			}
 			account, err := getAccountByContext(ctx)
 			if err != nil {
 				return err

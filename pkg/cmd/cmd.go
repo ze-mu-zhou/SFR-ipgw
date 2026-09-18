@@ -4,10 +4,10 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/urfave/cli/v2"
 	"github.com/ze-mu-zhou/SFR-ipgw/pkg/console"
 	"github.com/ze-mu-zhou/SFR-ipgw/pkg/handler"
 	"github.com/ze-mu-zhou/SFR-ipgw/pkg/model"
-	"github.com/urfave/cli/v2"
 )
 
 var (
@@ -28,9 +28,7 @@ var (
 		},
 		Action: func(ctx *cli.Context) error {
 			if ctx.NArg() != 0 {
-				console.InfoL("未找到该命令\n")
-				cli.ShowAppHelpAndExit(ctx, 1)
-				return nil
+				return errors.New("未知命令或多余参数，请使用 --help 查看用法")
 			}
 			return loginUseDefaultAccount(ctx)
 		},
@@ -49,14 +47,9 @@ var (
 )
 
 func loginUseDefaultAccount(ctx *cli.Context) error {
-	// login use default account
-	store, err := getStoreHandler(ctx)
+	account, err := getAccountByContext(ctx)
 	if err != nil {
 		return err
-	}
-	account := store.Config.GetDefaultAccount()
-	if account == nil {
-		return errors.New("没有已保存的账号")
 	}
 	console.InfoF("使用账号 '%s'\n", account.Username)
 
