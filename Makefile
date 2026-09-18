@@ -72,4 +72,5 @@ release: all
 	bash scripts/release.sh $(NAME) $(BUILD_DIR) $(RELEASE_DIR)
 
 clean:
-	rm -rf $(BUILD_DIR)/*
+	rm -rf $(BUILD_DIR)
+	mkdir -p $(BUILD_DIR)

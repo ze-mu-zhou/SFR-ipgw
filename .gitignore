@@ -2,6 +2,8 @@
 build/
 release/
 ipgw.exe
+/ipgw
+/.ipgw
 .ipgw-update-*/
 .ipgw-backup-*
 *.snapshot.json
