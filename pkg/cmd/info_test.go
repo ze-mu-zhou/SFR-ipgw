@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ze-mu-zhou/SFR-ipgw/pkg/handler"
 	"github.com/urfave/cli/v2"
+	"github.com/ze-mu-zhou/SFR-ipgw/pkg/handler"
 )
 
 type fakeDashboard struct {

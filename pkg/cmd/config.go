@@ -147,8 +147,13 @@ var (
 				}
 			}
 			warning, err := store.UpdateConfig(func(config *model.Config) error {
+				// Another process may have deleted the account while we prompted.
+				current := config.GetAccount(username)
+				if current == nil {
+					return fmt.Errorf("修改账号失败：\n\t未找到 '%s'", username)
+				}
 				if changePassword {
-					if err := config.GetAccount(username).SetPassword(password); err != nil {
+					if err := current.SetPassword(password); err != nil {
 						return fmt.Errorf("设置密码失败：\n\t%v", err)
 					}
 				}

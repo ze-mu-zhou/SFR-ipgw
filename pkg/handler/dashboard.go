@@ -3,11 +3,13 @@ package handler
 import (
 	"errors"
 	"fmt"
-	"github.com/ze-mu-zhou/SFR-ipgw/pkg/model"
-	"golang.org/x/net/html"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/ze-mu-zhou/SFR-ipgw/pkg/model"
+	"golang.org/x/net/html"
 )
 
 type DashboardHandler struct {
@@ -180,18 +182,46 @@ func required(values ...string) bool {
 	}
 	return true
 }
+
+// Column IDs are only meaningful within an identified table. In particular,
+// device grids reuse 3/4/6/7 for unrelated values. Require semantic headers
+// before applying the legacy column-ID fallback for individual cells.
+func isPackageTable(t *html.Node) bool {
+	var traffic, balance bool
+	for _, h := range nodes(t, "th") {
+		switch nodeText(h) {
+		case "已用流量", "使用流量":
+			traffic = true
+		case "余额", "账户余额":
+			balance = true
+		}
+	}
+	return traffic && balance
+}
+
+func parseAmount(value string) (float64, error) {
+	amount, err := strconv.ParseFloat(value, 64)
+	if err != nil || math.IsNaN(amount) || math.IsInf(amount, 0) {
+		return 0, errors.New("金额无效")
+	}
+	return amount, nil
+}
+
 func (d *DashboardHandler) GetPackage() (*Package, error) {
 	doc, e := d.indexDOM()
 	if e != nil {
 		return nil, e
 	}
 	for _, t := range nodes(doc, "table") {
+		if !isPackageTable(t) {
+			continue
+		}
 		for _, r := range tableRows(t) {
 			p := &Package{UsedTraffic: field(r, "3", "已用流量", "使用流量"), UsedDuration: field(r, "4", "已用时长", "使用时长"), PackageCost: field(r, "6", "套餐费用", "消费"), Balance: field(r, "7", "余额", "账户余额")}
 			if !required(p.UsedTraffic, p.UsedDuration, p.PackageCost, p.Balance) {
 				continue
 			}
-			v, e := strconv.ParseFloat(p.Balance, 64)
+			v, e := parseAmount(p.Balance)
 			if e != nil {
 				return nil, errors.New("账单页面中的余额无效")
 			}
@@ -297,12 +327,13 @@ func (d *DashboardHandler) GetBill(page int) ([]BillRecord, error) {
 		if !required(id, f, v, traffic, duration, date) {
 			return nil, pageFormatError()
 		}
-		fixed, e1 := strconv.ParseFloat(f, 64)
-		variable, e2 := strconv.ParseFloat(v, 64)
-		if e1 != nil || e2 != nil {
+		fixed, e1 := parseAmount(f)
+		variable, e2 := parseAmount(v)
+		cost := fixed + variable
+		if e1 != nil || e2 != nil || math.IsNaN(cost) || math.IsInf(cost, 0) {
 			return nil, errors.New("账单金额无效")
 		}
-		out = append(out, BillRecord{id, fixed + variable, traffic, duration, date})
+		out = append(out, BillRecord{id, cost, traffic, duration, date})
 	}
 	return out, nil
 }

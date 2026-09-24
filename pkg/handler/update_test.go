@@ -20,7 +20,9 @@ func (f updateTransport) RoundTrip(r *http.Request) (*http.Response, error) { re
 
 func testUpdateHandler(rt http.RoundTripper) *UpdateHandler {
 	c := &http.Client{Transport: rt}
-	return &UpdateHandler{apiClient: c, downloadClient: c}
+	u := NewUpdateHandler()
+	u.apiClient, u.downloadClient = c, c
+	return u
 }
 
 type trackedBody struct {

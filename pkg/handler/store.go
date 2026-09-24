@@ -11,8 +11,6 @@ import (
 	"strings"
 )
 
-var saveCredential = credential.Save
-var loadCredential = credential.Load
 var deleteCredential = credential.Delete
 
 type StoreHandler struct {
@@ -37,10 +35,22 @@ func getConfigPath(path string) (string, error) {
 	}
 	return filepath.Join(home, ".ipgw"), nil
 }
+
+// Persist replaces the complete configuration. Read-modify-write callers must
+// use UpdateConfig, which reloads the latest state under the same lock.
 func (h *StoreHandler) Persist() error {
 	if h.Config == nil {
 		return errors.New("未加载配置")
 	}
+	lock, err := lockConfig(h.Path)
+	if err != nil {
+		return err
+	}
+	defer lock.Close()
+	return h.persistLocked()
+}
+
+func (h *StoreHandler) persistLocked() error {
 	data, e := json.MarshalIndent(h.Config, "", "  ")
 	if e != nil {
 		return e
@@ -92,14 +102,25 @@ func (h *StoreHandler) Load() error {
 	return nil
 }
 
-// UpdateConfig 在副本上修改配置。保存失败时保留旧配置和旧凭据，
-// 仅回收本次新建的凭据；保存成功后才清理不再引用的旧凭据。
+// UpdateConfig 持有跨进程锁，重新加载最新配置后在副本上修改。
+// 锁覆盖加载、修改、保存及凭据清理；change 必须基于传入的最新配置校验。
+// 保存失败时保留旧配置和旧凭据，仅回收本次新建的凭据；
+// 保存成功后才清理不再引用的旧凭据。
 // warning 表示配置已经保存、但旧凭据清理失败；err 表示修改未提交。
 func (h *StoreHandler) UpdateConfig(change func(*model.Config) error) (warning, err error) {
 	if h.Config == nil {
 		return nil, errors.New("未加载配置")
 	}
-	old := h.Config
+	lock, err := lockConfig(h.Path)
+	if err != nil {
+		return nil, err
+	}
+	defer lock.Close()
+	latest := &StoreHandler{Path: h.Path}
+	if err := latest.Load(); err != nil {
+		return nil, err
+	}
+	original, old := h.Config, latest.Config
 	next := *old
 	next.Accounts = make([]*model.Account, len(old.Accounts))
 	for i, account := range old.Accounts {
@@ -109,10 +130,10 @@ func (h *StoreHandler) UpdateConfig(change func(*model.Config) error) (warning, 
 	err = change(&next)
 	if err == nil {
 		h.Config = &next
-		err = h.Persist()
+		err = h.persistLocked()
 	}
 	if err != nil {
-		h.Config = old
+		h.Config = original
 		if cleanupErr := cleanupCredentials(&next, old); cleanupErr != nil {
 			err = errors.Join(err, fmt.Errorf("清理本次新建凭据失败：%w", cleanupErr))
 		}
@@ -143,4 +164,3 @@ func cleanupCredentials(removed, retained *model.Config) error {
 	}
 	return errors.Join(errs...)
 }
-

@@ -37,6 +37,7 @@ type UpdateHandler struct {
 	apiClient      *http.Client
 	downloadClient *http.Client
 	release        *releaseInfo
+	executablePath func() (path, dir string, err error)
 }
 type downloader struct {
 	io.Reader
@@ -67,7 +68,8 @@ func httpsOnlyRedirect(req *http.Request, via []*http.Request) error {
 // 慢速网络下也能完成大文件下载。
 func NewUpdateHandler() *UpdateHandler {
 	return &UpdateHandler{
-		apiClient: &http.Client{Timeout: 30 * time.Second, CheckRedirect: httpsOnlyRedirect},
+		executablePath: utils.GetExecutablePathAndDir,
+		apiClient:      &http.Client{Timeout: 30 * time.Second, CheckRedirect: httpsOnlyRedirect},
 		downloadClient: &http.Client{
 			CheckRedirect: httpsOnlyRedirect,
 			Transport: &http.Transport{
@@ -257,7 +259,7 @@ func (u *UpdateHandler) Update() error {
 	if e = verifyDigest(downloaded, asset.Digest); e != nil {
 		return e
 	}
-	current, dir, e := utils.GetExecutablePathAndDir()
+	current, dir, e := u.executablePath()
 	if e != nil {
 		return e
 	}

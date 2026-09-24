@@ -65,10 +65,11 @@ func TestUpdateConfigCredentialLifecycle(t *testing.T) {
 				delete(vault, ref)
 				return nil
 			}
-			if tc.persistFailure {
-				store.Path = filepath.Join(path, "missing", "config.json")
-			}
 			warning, updateErr := store.UpdateConfig(func(config *model.Config) error {
+				// Fail the write after the locked reload, not lock acquisition.
+				if tc.persistFailure {
+					store.Path = filepath.Join(path, "missing", "config.json")
+				}
 				switch tc.operation {
 				case "set":
 					vault["new"] = "new-password"
