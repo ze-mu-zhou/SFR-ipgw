@@ -1,46 +1,49 @@
 package handler
 
 import (
-	"github.com/ze-mu-zhou/SFR-ipgw/pkg/model"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/ze-mu-zhou/SFR-ipgw/pkg/model"
 )
 
 func TestLoadMissingDoesNotCreateConfig(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config")
-	s, e := NewStoreHandler(path)
-	if e != nil {
-		t.Fatal(e)
+	store, err := NewStoreHandler(path)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if e = s.Load(); e != nil {
-		t.Fatal(e)
+	if err = store.Load(); err != nil {
+		t.Fatal(err)
 	}
-	if _, e = os.Stat(path); !os.IsNotExist(e) {
+	if _, err = os.Stat(path); !os.IsNotExist(err) {
 		t.Fatal("read created configuration")
 	}
 }
+
 func TestStoreRejectsCorruptConfig(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config")
 	os.WriteFile(path, []byte(`{"accounts":`), 0600)
-	s, _ := NewStoreHandler(path)
-	if e := s.Load(); e == nil {
+	store, _ := NewStoreHandler(path)
+	if err := store.Load(); err == nil {
 		t.Fatal("truncated JSON accepted")
 	}
 }
+
 func TestPersistOnlySerializableCredentials(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config")
-	s, _ := NewStoreHandler(path)
-	s.Config = &model.Config{Accounts: []*model.Account{{Username: "test", Password: "sensitive", CredentialRef: "vault-ref"}}}
-	if e := s.Persist(); e != nil {
-		t.Fatal(e)
+	store, _ := NewStoreHandler(path)
+	store.Config = &model.Config{Accounts: []*model.Account{{Username: "test", Password: "sensitive", CredentialRef: "vault-ref"}}}
+	if err := store.Persist(); err != nil {
+		t.Fatal(err)
 	}
-	s2, _ := NewStoreHandler(path)
-	if e := s2.Load(); e != nil {
-		t.Fatal(e)
+	reloaded, _ := NewStoreHandler(path)
+	if err := reloaded.Load(); err != nil {
+		t.Fatal(err)
 	}
-	a := s2.Config.Accounts[0]
-	if a.Password != "" || a.CredentialRef != "vault-ref" {
+	account := reloaded.Config.Accounts[0]
+	if account.Password != "" || account.CredentialRef != "vault-ref" {
 		t.Fatal("invalid persisted account")
 	}
 }

@@ -76,6 +76,7 @@ func TestLoginCAS(t *testing.T) {
 					t.Error("RSA field is not valid base64")
 					return
 				}
+				//lint:ignore SA1019 模拟学校 CAS 服务端的 PKCS #1 v1.5 解密
 				plaintext, err := rsa.DecryptPKCS1v15(rand.Reader, key, ciphertext)
 				if err != nil || string(plaintext) != username+password {
 					t.Error("RSA payload does not match the current login protocol")
@@ -123,7 +124,7 @@ func TestCASRejectsCrossOrigin307(t *testing.T) {
 	defer origin.Close()
 	client := origin.Client()
 	client.Jar, _ = cookiejar.New(nil)
-	if e := loginCAS(client, origin.URL, "dummy", "dummy"); e == nil {
+	if err := loginCAS(client, origin.URL, "dummy", "dummy"); err == nil {
 		t.Fatal("cross-origin redirect accepted")
 	}
 	if redirected {

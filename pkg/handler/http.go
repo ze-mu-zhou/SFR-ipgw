@@ -42,56 +42,74 @@ func responseBody(resp *http.Response) (string, error) {
 	}
 	return string(data), nil
 }
-func attr(n *html.Node, key string) string {
-	for _, a := range n.Attr {
-		if a.Key == key {
-			return a.Val
+
+func attr(node *html.Node, key string) string {
+	for _, attribute := range node.Attr {
+		if attribute.Key == key {
+			return attribute.Val
 		}
 	}
 	return ""
 }
-func nodeText(n *html.Node) string {
-	var b strings.Builder
+
+func nodeText(root *html.Node) string {
+	var text strings.Builder
 	var walk func(*html.Node)
-	walk = func(n *html.Node) {
-		if n.Type == html.TextNode {
-			b.WriteString(n.Data)
+	walk = func(node *html.Node) {
+		if node.Type == html.TextNode {
+			text.WriteString(node.Data)
 		}
-		for c := n.FirstChild; c != nil; c = c.NextSibling {
-			walk(c)
+		for child := node.FirstChild; child != nil; child = child.NextSibling {
+			walk(child)
 		}
 	}
-	walk(n)
-	return strings.TrimSpace(b.String())
+	walk(root)
+	return strings.TrimSpace(text.String())
 }
-func nodes(n *html.Node, tag string) []*html.Node {
-	var out []*html.Node
+
+func nodes(root *html.Node, tag string) []*html.Node {
+	var matches []*html.Node
 	var walk func(*html.Node)
-	walk = func(n *html.Node) {
-		if n.Type == html.ElementNode && n.Data == tag {
-			out = append(out, n)
+	walk = func(node *html.Node) {
+		if node.Type == html.ElementNode && node.Data == tag {
+			matches = append(matches, node)
 		}
-		for c := n.FirstChild; c != nil; c = c.NextSibling {
-			walk(c)
+		for child := node.FirstChild; child != nil; child = child.NextSibling {
+			walk(child)
 		}
 	}
-	walk(n)
-	return out
+	walk(root)
+	return matches
 }
+
 func pageDOM(body string) (*html.Node, error) { return html.Parse(strings.NewReader(body)) }
+
 func pageFormatError() error {
 	return errors.New("页面格式已变化或登录已过期：缺少必要字段")
 }
+
 func dashboardPage(client *http.Client, path string) (string, error) {
 	resp, err := client.Get("https://ipgw.neu.edu.cn:8800" + path)
 	if err != nil {
 		return "", safeRequestError(err)
 	}
-	if resp.Request != nil && (resp.Request.URL.Host != "ipgw.neu.edu.cn:8800" || strings.Contains(resp.Request.URL.Path, "login")) {
+	if resp.Request != nil && isDashboardLogin(resp.Request.URL) {
 		resp.Body.Close()
 		return "", errors.New("计费系统会话已过期，请重新登录")
 	}
+	// 跳到 http 登录页时 CheckRedirect 会停在 3xx 上，Request.URL 仍是原地址，只能看 Location
+	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
+		resp.Body.Close()
+		if location, err := resp.Location(); err == nil && isDashboardLogin(location) {
+			return "", errors.New("计费系统会话已过期，请重新登录")
+		}
+		return "", fmt.Errorf("服务器返回 HTTP %d", resp.StatusCode)
+	}
 	return responseBody(resp)
+}
+
+func isDashboardLogin(u *url.URL) bool {
+	return u.Host != "ipgw.neu.edu.cn:8800" || strings.Contains(u.Path, "login")
 }
 
 // Network errors may carry CAS tickets in their URL. Preserve the cause only.

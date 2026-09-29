@@ -10,60 +10,63 @@ import (
 func testZip(t *testing.T, name string, mode os.FileMode) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "test.zip")
-	f, e := os.Create(path)
-	if e != nil {
-		t.Fatal(e)
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
 	}
-	z := zip.NewWriter(f)
-	h := &zip.FileHeader{Name: name}
-	h.SetMode(mode)
-	w, e := z.CreateHeader(h)
-	if e != nil {
-		t.Fatal(e)
+	writer := zip.NewWriter(file)
+	header := &zip.FileHeader{Name: name}
+	header.SetMode(mode)
+	entry, err := writer.CreateHeader(header)
+	if err != nil {
+		t.Fatal(err)
 	}
-	w.Write([]byte("data"))
-	if e = z.Close(); e != nil {
-		t.Fatal(e)
+	entry.Write([]byte("data"))
+	if err = writer.Close(); err != nil {
+		t.Fatal(err)
 	}
-	f.Close()
+	file.Close()
 	return path
 }
+
 func TestUnzipRejectsUnsafeEntries(t *testing.T) {
-	for _, c := range []struct {
+	for _, tc := range []struct {
 		name string
 		mode os.FileMode
 	}{{"../outside", 0600}, {"/absolute", 0600}, {"a/../../escape", 0600}, {"C:/outside", 0600}, {"..\\escape", 0600}, {"file:stream", 0600}, {"link", os.ModeSymlink | 0700}} {
-		t.Run(c.name, func(t *testing.T) {
-			if e := Unzip(testZip(t, c.name, c.mode), filepath.Join(t.TempDir(), "dest")); e == nil {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := Unzip(testZip(t, tc.name, tc.mode), filepath.Join(t.TempDir(), "dest")); err == nil {
 				t.Fatal("unsafe archive accepted")
 			}
 		})
 	}
 }
+
 func TestUnzipExtractsButNeverOverwrites(t *testing.T) {
 	dest := t.TempDir()
 	archive := testZip(t, "sub/ipgw", 0755)
-	if e := Unzip(archive, dest); e != nil {
-		t.Fatal(e)
+	if err := Unzip(archive, dest); err != nil {
+		t.Fatal(err)
 	}
-	p := filepath.Join(dest, "sub", "ipgw")
-	data, e := os.ReadFile(p)
-	if e != nil || string(data) != "data" {
-		t.Fatalf("bad extraction %q %v", data, e)
+	path := filepath.Join(dest, "sub", "ipgw")
+	data, err := os.ReadFile(path)
+	if err != nil || string(data) != "data" {
+		t.Fatalf("bad extraction %q %v", data, err)
 	}
-	os.WriteFile(p, []byte("existing"), 0600)
-	if e = Unzip(archive, dest); e == nil {
+	os.WriteFile(path, []byte("existing"), 0600)
+	if err = Unzip(archive, dest); err == nil {
 		t.Fatal("overwrote existing file")
 	}
-	data, _ = os.ReadFile(p)
+	data, _ = os.ReadFile(path)
 	if string(data) != "existing" {
 		t.Fatal("existing file changed")
 	}
 }
+
 func TestSemverNumericPrereleaseAndInvalidInput(t *testing.T) {
-	for _, s := range []string{"1.2.3.4", "1.a.0", "01.2.3", "1.2.3-01", "1.2.3-", "1.2.3+"} {
-		if ParseVersion(s) != nil {
-			t.Fatalf("invalid version accepted: %s", s)
+	for _, version := range []string{"1.2.3.4", "1.a.0", "01.2.3", "1.2.3-01", "1.2.3-", "1.2.3+"} {
+		if ParseVersion(version) != nil {
+			t.Fatalf("invalid version accepted: %s", version)
 		}
 	}
 	if !CompareVersion(ParseVersion("1.0.0-rc.10"), ParseVersion("1.0.0-rc.9")) {

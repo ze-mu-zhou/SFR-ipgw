@@ -24,22 +24,27 @@ func (f *fakeDashboard) GetBasic() (*handler.Basic, error) {
 	f.calls++
 	return &handler.Basic{ID: "test-user", Name: "Test"}, nil
 }
+
 func (f *fakeDashboard) GetPackage() (*handler.Package, error) {
 	f.calls++
 	return &handler.Package{UsedTraffic: "1.00 GB"}, nil
 }
+
 func (f *fakeDashboard) GetDevice() ([]handler.Device, error) {
 	f.calls++
 	return []handler.Device{}, nil
 }
+
 func (f *fakeDashboard) GetRecharge(int) ([]handler.RechargeRecord, error) {
 	f.calls++
 	return []handler.RechargeRecord{}, nil
 }
+
 func (f *fakeDashboard) GetUsageRecords(int) ([]handler.UsageRecord, error) {
 	f.calls++
 	return []handler.UsageRecord{}, nil
 }
+
 func (f *fakeDashboard) GetBill(int) ([]handler.BillRecord, error) {
 	f.calls++
 	return []handler.BillRecord{}, f.billErr
@@ -48,8 +53,8 @@ func (f *fakeDashboard) GetBill(int) ([]handler.BillRecord, error) {
 func infoContext(t *testing.T, args ...string) *cli.Context {
 	t.Helper()
 	set := flag.NewFlagSet("info", flag.ContinueOnError)
-	for _, f := range InfoCommand.Flags {
-		if err := f.Apply(set); err != nil {
+	for _, infoFlag := range InfoCommand.Flags {
+		if err := infoFlag.Apply(set); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -88,8 +93,8 @@ func TestStoredAccountUsedWithoutPrompt(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := accountContext(t, configPath, "--username", "test-user")
-	a, err := getAccountByContext(ctx)
-	if err != nil || a.Username != "test-user" || a.CredentialRef != "ipgw/account/test" {
+	account, err := accountFromContext(ctx)
+	if err != nil || account.Username != "test-user" || account.CredentialRef != "ipgw/account/test" {
 		t.Fatalf("stored account not used: %v", err)
 	}
 }
@@ -97,7 +102,7 @@ func TestStoredAccountUsedWithoutPrompt(t *testing.T) {
 func TestUnknownAccountRequiresInteractivePassword(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "missing-parent", "config.json")
 	ctx := accountContext(t, configPath, "--username", "unknown-user")
-	if _, err := getAccountByContext(ctx); err == nil {
+	if _, err := accountFromContext(ctx); err == nil {
 		t.Fatal("unknown account without terminal accepted")
 	}
 }
@@ -109,8 +114,8 @@ func accountContext(t *testing.T, configPath string, args ...string) *cli.Contex
 	set.String("config", configPath, "")
 	parent := cli.NewContext(ctx.App, set, nil)
 	local := flag.NewFlagSet("info", flag.ContinueOnError)
-	for _, f := range InfoCommand.Flags {
-		if err := f.Apply(local); err != nil {
+	for _, infoFlag := range InfoCommand.Flags {
+		if err := infoFlag.Apply(local); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -135,20 +140,20 @@ func TestSnapshotFileDoesNotOverwrite(t *testing.T) {
 }
 
 func TestSnapshotPeriodSource(t *testing.T) {
-	r := &infoReport{CompletedAt: time.Now().UTC(), Sections: map[string]querySection{}}
-	if err := collectInfo(infoContext(t, "--package"), &fakeDashboard{}, r); err != nil {
+	report := &infoReport{CompletedAt: time.Now().UTC(), Sections: map[string]querySection{}}
+	if err := collectInfo(infoContext(t, "--package"), &fakeDashboard{}, report); err != nil {
 		t.Fatal(err)
 	}
-	s, err := snapshotFromReport(r, "", 1000)
-	if err != nil || s.PeriodSource != "unknown" || s.BillingPeriod != "" {
-		t.Fatalf("guessed cycle: %+v %v", s, err)
+	snapshot, err := snapshotFromReport(report, "", 1000)
+	if err != nil || snapshot.PeriodSource != "unknown" || snapshot.BillingPeriod != "" {
+		t.Fatalf("guessed cycle: %+v %v", snapshot, err)
 	}
-	s, err = snapshotFromReport(r, "2026-09", 1000)
-	if err != nil || s.PeriodSource != "user" {
-		t.Fatalf("user cycle not marked: %+v %v", s, err)
+	snapshot, err = snapshotFromReport(report, "2026-09", 1000)
+	if err != nil || snapshot.PeriodSource != "user" {
+		t.Fatalf("user cycle not marked: %+v %v", snapshot, err)
 	}
-	r.Sections["package"].Data.(*handler.Package).BillingPeriod = "2026-08"
-	if _, err = snapshotFromReport(r, "2026-09", 1000); err == nil {
+	report.Sections["package"].Data.(*handler.Package).BillingPeriod = "2026-08"
+	if _, err = snapshotFromReport(report, "2026-09", 1000); err == nil {
 		t.Fatal("contradictory cycle accepted")
 	}
 }

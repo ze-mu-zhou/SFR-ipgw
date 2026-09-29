@@ -34,16 +34,16 @@ type Measurement struct {
 var trafficRE = regexp.MustCompile(`(?i)^\s*([0-9]+(?:\.[0-9]+)?)\s*(B|BYTE|BYTES|KB|MB|GB|TB|KIB|MIB|GIB|TIB|K|M|G|T)\s*$`)
 
 func ParseTraffic(display string, base int) (Measurement, error) {
-	m := Measurement{Display: display}
+	measurement := Measurement{Display: display}
 	if base != 0 && base != 1000 && base != 1024 {
-		return m, errors.New("流量单位基数只能是 1000 或 1024")
+		return measurement, errors.New("流量单位基数只能是 1000 或 1024")
 	}
 	parts := trafficRE.FindStringSubmatch(display)
 	if parts == nil {
-		return m, fmt.Errorf("无法识别流量单位：%q", display)
+		return measurement, fmt.Errorf("无法识别流量单位：%q", display)
 	}
 	if len(parts[2]) > 1 && strings.HasSuffix(parts[2], "b") {
-		return m, errors.New("小写 b 可能表示比特，不能按字节生成快照；请确认页面单位")
+		return measurement, errors.New("小写 b 可能表示比特，不能按字节生成快照；请确认页面单位")
 	}
 	unit := strings.ToUpper(parts[2])
 	power := strings.Index("KMGT", unit[:1]) + 1
@@ -52,24 +52,24 @@ func ParseTraffic(display string, base int) (Measurement, error) {
 	} else if strings.Contains(unit, "IB") {
 		base = 1024
 	} else if base == 0 {
-		return m, errors.New("页面单位未说明 1000/1024 基数，请核实后用 --traffic-base 指定；不能凭显示值猜测字节数")
+		return measurement, errors.New("页面单位未说明 1000/1024 基数，请核实后用 --traffic-base 指定；不能凭显示值猜测字节数")
 	}
 	value, ok := new(big.Rat).SetString(parts[1])
 	if !ok {
-		return m, errors.New("流量数值无效")
+		return measurement, errors.New("流量数值无效")
 	}
 	multiplier := new(big.Int).Exp(big.NewInt(int64(base)), big.NewInt(int64(power)), nil)
 	value.Mul(value, new(big.Rat).SetInt(multiplier))
 	bytes := new(big.Int).Quo(value.Num(), value.Denom())
 	if !bytes.IsInt64() {
-		return m, errors.New("流量数值超出范围")
+		return measurement, errors.New("流量数值超出范围")
 	}
 	digits := 0
 	if dot := strings.IndexByte(parts[1], '.'); dot >= 0 {
 		digits = len(parts[1]) - dot - 1
 	}
 	if digits > 12 {
-		return m, errors.New("流量小数位数超出支持范围")
+		return measurement, errors.New("流量小数位数超出支持范围")
 	}
 	denom := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(digits)), nil)
 	resolution, remainder := new(big.Int), new(big.Int)
@@ -78,10 +78,10 @@ func ParseTraffic(display string, base int) (Measurement, error) {
 		resolution.Add(resolution, big.NewInt(1))
 	}
 	if !resolution.IsInt64() || resolution.Sign() <= 0 {
-		return m, errors.New("流量精度无效")
+		return measurement, errors.New("流量精度无效")
 	}
-	m.Unit, m.Base, m.Bytes, m.ResolutionBytes = unit, base, bytes.Int64(), resolution.Int64()
-	return m, nil
+	measurement.Unit, measurement.Base, measurement.Bytes, measurement.ResolutionBytes = unit, base, bytes.Int64(), resolution.Int64()
+	return measurement, nil
 }
 
 type SnapshotComparison struct {
@@ -95,15 +95,15 @@ type SnapshotComparison struct {
 	Note             string    `json:"note"`
 }
 
-func validateSnapshot(s Snapshot) error {
-	if s.SchemaVersion != 1 || s.QueryStatus != "ok" || s.AccountID == "" || s.CapturedAt.IsZero() || s.Source != "ipgw-dashboard" {
+func validateSnapshot(snapshot Snapshot) error {
+	if snapshot.SchemaVersion != 1 || snapshot.QueryStatus != "ok" || snapshot.AccountID == "" || snapshot.CapturedAt.IsZero() || snapshot.Source != "ipgw-dashboard" {
 		return errors.New("快照格式无效或查询未成功")
 	}
-	if s.BillingPeriod == "" || (s.PeriodSource != "server" && s.PeriodSource != "user") {
+	if snapshot.BillingPeriod == "" || (snapshot.PeriodSource != "server" && snapshot.PeriodSource != "user") {
 		return errors.New("快照计费周期未知，不能进行可靠对比")
 	}
-	m, err := ParseTraffic(s.Traffic.Display, s.Traffic.Base)
-	if err != nil || m != s.Traffic {
+	measurement, err := ParseTraffic(snapshot.Traffic.Display, snapshot.Traffic.Base)
+	if err != nil || measurement != snapshot.Traffic {
 		return errors.New("快照流量数值、单位或精度不一致")
 	}
 	return nil

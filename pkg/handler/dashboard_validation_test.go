@@ -14,9 +14,9 @@ func TestPackageSelectionDoesNotDependOnTableOrder(t *testing.T) {
 	for _, stage := range []string{"在线", "1"} {
 		device := `<table><tr><th data-col-seq="3">上线时间</th><th data-col-seq="4">使用时长</th><th data-col-seq="6">MAC地址</th><th data-col-seq="7">状态</th></tr><tr data-key="session"><td data-col-seq="3">2026-09-01 10:00:00</td><td data-col-seq="4">1小时</td><td data-col-seq="6">00:11:22:33:44:55</td><td data-col-seq="7">` + stage + `</td></tr></table>`
 		for _, body := range []string{device + packageTable("10"), packageTable("10") + device} {
-			p, err := dashboardFixture(body).GetPackage()
-			if err != nil || p.UsedTraffic != "1 GB" || p.Balance != "10" || p.Overdue {
-				t.Fatalf("wrong package: %+v error=%v", p, err)
+			pkg, err := dashboardFixture(body).GetPackage()
+			if err != nil || pkg.UsedTraffic != "1 GB" || pkg.Balance != "10" || pkg.Overdue {
+				t.Fatalf("wrong package: %+v error=%v", pkg, err)
 			}
 		}
 		if _, err := dashboardFixture(device).GetPackage(); err == nil {
@@ -32,9 +32,9 @@ func TestPackageHeaderMappingAndColumnFallback(t *testing.T) {
 		// After identifying the table, legacy column IDs still work for other fields.
 		`<table><tr><th data-col-seq="3">使用流量</th><th data-col-seq="7">账户余额</th></tr><tr><td data-col-seq="3">1 GB</td><td data-col-seq="4">1小时</td><td data-col-seq="6">20</td><td data-col-seq="7">-10</td></tr></table>`,
 	} {
-		p, err := dashboardFixture(body).GetPackage()
-		if err != nil || p.UsedTraffic != "1 GB" || p.PackageCost != "20" || p.UsedDuration != "1小时" || !p.Overdue {
-			t.Fatalf("wrong package: %+v error=%v", p, err)
+		pkg, err := dashboardFixture(body).GetPackage()
+		if err != nil || pkg.UsedTraffic != "1 GB" || pkg.PackageCost != "20" || pkg.UsedDuration != "1小时" || !pkg.Overdue {
+			t.Fatalf("wrong package: %+v error=%v", pkg, err)
 		}
 	}
 	// Column numbers alone do not establish the meaning of a table.
@@ -81,12 +81,12 @@ func TestBillRejectsNonFiniteAmounts(t *testing.T) {
 func TestBasicAndDevices(t *testing.T) {
 	body := `<div><label>用户名</label><span>alice</span></div><div><label>姓名</label><span>张三</span></div>` + packageTable("10") +
 		`<table><tr><th data-col-seq="1">IP地址</th><th data-col-seq="3">上线时间</th><th data-col-seq="7">状态</th></tr><tr data-key="session-1"><td data-col-seq="1">192.0.2.1</td><td data-col-seq="3">2026-09-01 10:00:00</td><td data-col-seq="7">在线</td></tr></table>`
-	d := dashboardFixture(body)
-	basic, err := d.GetBasic()
+	dashboard := dashboardFixture(body)
+	basic, err := dashboard.GetBasic()
 	if err != nil || basic.ID != "alice" || basic.Name != "张三" {
 		t.Fatalf("basic=%+v error=%v", basic, err)
 	}
-	devices, err := d.GetDevice()
+	devices, err := dashboard.GetDevice()
 	if err != nil || len(devices) != 1 || devices[0].SID != "session-1" || devices[0].IP != "192.0.2.1" || devices[0].Stage != "在线" {
 		t.Fatalf("devices=%+v error=%v", devices, err)
 	}

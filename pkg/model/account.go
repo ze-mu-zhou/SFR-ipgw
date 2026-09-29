@@ -2,6 +2,7 @@ package model
 
 import (
 	"errors"
+
 	"github.com/ze-mu-zhou/SFR-ipgw/pkg/credential"
 )
 
@@ -28,11 +29,12 @@ func (a *Account) SetPassword(password string) error {
 	if err != nil {
 		return err
 	}
-	if e := credential.Save(ref, a.Username, password); e != nil {
-		return e
+	if err := credential.Save(ref, a.Username, password); err != nil {
+		return err
 	}
 	a.CredentialRef = ref
 	a.Password = password
 	return nil
 }
+
 func (a *Account) String() string { return a.Username }

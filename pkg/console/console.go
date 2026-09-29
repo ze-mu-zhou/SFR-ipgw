@@ -13,7 +13,7 @@ var (
 	Stderr io.Writer = newStderrWriter()
 )
 
-func FatalL(msg ...interface{}) {
+func Fatalln(msg ...interface{}) {
 	_, _ = fmt.Fprintln(Stderr, msg...)
 	os.Exit(1)
 }
@@ -22,10 +22,10 @@ func Info(msg ...interface{}) {
 	_, _ = fmt.Fprint(Stdout, msg...)
 }
 
-func InfoL(msg ...interface{}) {
+func Infoln(msg ...interface{}) {
 	_, _ = fmt.Fprintln(Stdout, msg...)
 }
 
-func InfoF(format string, msg ...interface{}) {
+func Infof(format string, msg ...interface{}) {
 	_, _ = fmt.Fprintf(Stdout, format, msg...)
 }

@@ -6,31 +6,28 @@ import (
 	"github.com/ze-mu-zhou/SFR-ipgw/pkg/handler"
 )
 
-var (
-	TestCommand = &cli.Command{
-		Name:   "test",
-		Usage:  "test whether is connected to the campus network and whether has logged in ipgw",
-		Before: rejectPositionalArguments,
-		Action: func(ctx *cli.Context) error {
-			h := handler.NewIpgwHandler()
-			connected, loggedIn, err := h.CheckConnection()
-			if err != nil {
-				return err
-			}
-			console.Info("校园网连接： ")
-			if connected {
-				console.InfoL("已连接")
-			} else {
-				console.InfoL("未连接")
-			}
-			console.Info("ipgw 登录：  ")
-			if loggedIn {
-				console.InfoL("是")
-			} else {
-				console.InfoL("否")
-			}
-			return nil
-		},
-		OnUsageError: onUsageError,
-	}
-)
+var TestCommand = &cli.Command{
+	Name:   "test",
+	Usage:  "检测是否连接校园网，以及是否已登录网关",
+	Before: rejectPositionalArguments,
+	Action: func(ctx *cli.Context) error {
+		connected, loggedIn, err := handler.NewIPGWHandler().CheckConnection()
+		if err != nil {
+			return err
+		}
+		console.Info("校园网连接： ")
+		if connected {
+			console.Infoln("已连接")
+		} else {
+			console.Infoln("未连接")
+		}
+		console.Info("ipgw 登录：  ")
+		if loggedIn {
+			console.Infoln("是")
+		} else {
+			console.Infoln("否")
+		}
+		return nil
+	},
+	OnUsageError: onUsageError,
+}

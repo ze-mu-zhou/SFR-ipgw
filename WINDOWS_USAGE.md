@@ -25,7 +25,7 @@
 .\ipgw.exe config account add -u 学号 --default
 ```
 
-配置文件只保留账号和凭据引用，密码保存在 Windows 凭据管理器。非 Windows 系统不支持这里的凭据存储，可使用临时输入。
+配置文件只保留账号和凭据引用，密码保存在 Windows 凭据管理器。macOS 和 Linux 分别使用钥匙串和 Secret Service 保存密码，见 [README](README.md)。
 
 保存账号后，直接运行 `.\ipgw.exe` 与 `.\ipgw.exe login` 使用相同的账号和密码获取逻辑：优先使用默认账号及已保存的凭据；未保存密码时，在交互终端隐藏输入密码，非交互环境则报错提示。
 
@@ -57,7 +57,7 @@
 
 ## 正式发行构建与自更新
 
-GitHub 发布流程依赖同一提交的 Windows/Linux 测试工作流；单元测试、`go vet` 或打包测试失败时，不会执行构建上传。
+GitHub 发布流程依赖同一提交的 Windows/Linux/macOS 测试工作流；格式检查、`go vet`、staticcheck、带竞态检测的单元测试、全平台交叉编译或打包测试任一失败时，不会执行构建上传。
 
 发行打包会按 Makefile 的平台清单检查所有可执行文件，逐个验证 ZIP 内容并生成、校验 SHA-256 清单；任一步骤失败都会停止发布。发行目录必须不存在或为空，避免混入旧版本文件；已有文件会保留并报错，可用 `make release RELEASE_DIR=新的目录` 指定其他输出目录。
 

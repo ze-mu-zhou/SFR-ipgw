@@ -9,16 +9,16 @@ import (
 )
 
 func TestAccountChangesPreserveOldCredentialBeforeCommit(t *testing.T) {
-	a := &Account{Username: "ipgw-test-uncommitted-account"}
-	if err := a.SetPassword("test-only-old-password"); err != nil {
+	account := &Account{Username: "ipgw-test-uncommitted-account"}
+	if err := account.SetPassword("test-only-old-password"); err != nil {
 		t.Fatal(err)
 	}
-	oldRef := a.CredentialRef
+	oldRef := account.CredentialRef
 	t.Cleanup(func() { credential.Delete(oldRef) })
-	if err := a.SetPassword("test-only-new-password"); err != nil {
+	if err := account.SetPassword("test-only-new-password"); err != nil {
 		t.Fatal(err)
 	}
-	newRef := a.CredentialRef
+	newRef := account.CredentialRef
 	t.Cleanup(func() { credential.Delete(newRef) })
 	if oldRef == newRef {
 		t.Fatal("password update overwrote the committed credential")
@@ -26,8 +26,8 @@ func TestAccountChangesPreserveOldCredentialBeforeCommit(t *testing.T) {
 	if password, err := credential.Load(oldRef); err != nil || password != "test-only-old-password" {
 		t.Fatal("password update removed the old credential before commit")
 	}
-	config := &Config{DefaultAccount: a.Username, Accounts: []*Account{a}}
-	if err := config.DelAccount(a.Username); err != nil {
+	config := &Config{DefaultAccount: account.Username, Accounts: []*Account{account}}
+	if err := config.DeleteAccount(account.Username); err != nil {
 		t.Fatal(err)
 	}
 	if password, err := credential.Load(newRef); err != nil || password != "test-only-new-password" {

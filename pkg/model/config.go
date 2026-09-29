@@ -13,13 +13,13 @@ func (c *Config) AddAccount(username, password string) error {
 			return fmt.Errorf("账号 %s 已存在", username)
 		}
 	}
-	a := &Account{Username: username}
+	account := &Account{Username: username}
 	if password != "" {
-		if err := a.SetPassword(password); err != nil {
+		if err := account.SetPassword(password); err != nil {
 			return err
 		}
 	}
-	c.Accounts = append(c.Accounts, a)
+	c.Accounts = append(c.Accounts, account)
 	return nil
 }
 
@@ -32,8 +32,8 @@ func (c *Config) GetAccount(username string) *Account {
 	return nil
 }
 
-// DelAccount 仅修改配置；系统凭据由存储层在持久化成功后清理。
-func (c *Config) DelAccount(username string) error {
+// DeleteAccount 仅修改配置；系统凭据由存储层在持久化成功后清理。
+func (c *Config) DeleteAccount(username string) error {
 	for i, account := range c.Accounts {
 		if account.Username == username {
 			c.Accounts = append(c.Accounts[:i], c.Accounts[i+1:]...)

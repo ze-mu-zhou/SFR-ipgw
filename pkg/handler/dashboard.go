@@ -13,38 +13,43 @@ import (
 )
 
 type DashboardHandler struct {
-	client                      *http.Client
-	cachedDashboardIndexContent string
+	client    *http.Client
+	indexBody string
 }
 
-func NewDashboardHandler() *DashboardHandler { return &DashboardHandler{client: newSession()} }
-func (d *DashboardHandler) Login(a *model.Account) error {
-	p, e := a.GetPassword()
-	if e != nil {
-		return e
-	}
-	if e = loginCAS(d.client, casLoginURL, a.Username, p); e != nil {
-		return e
-	}
-	_, e = dashboardPage(d.client, "/sso/neusoft/index")
-	d.cachedDashboardIndexContent = ""
-	return e
+func NewDashboardHandler() *DashboardHandler {
+	return &DashboardHandler{client: newSession()}
 }
-func (d *DashboardHandler) getCachedDashboardIndexBody() (string, error) {
-	if d.cachedDashboardIndexContent == "" {
-		b, e := dashboardPage(d.client, "/home")
-		if e != nil {
-			return "", e
-		}
-		d.cachedDashboardIndexContent = b
+
+func (d *DashboardHandler) Login(account *model.Account) error {
+	password, err := account.GetPassword()
+	if err != nil {
+		return err
 	}
-	return d.cachedDashboardIndexContent, nil
+	if err = loginCAS(d.client, casLoginURL, account.Username, password); err != nil {
+		return err
+	}
+	_, err = dashboardPage(d.client, "/sso/neusoft/index")
+	d.indexBody = ""
+	return err
+}
+
+func (d *DashboardHandler) cachedIndexBody() (string, error) {
+	if d.indexBody == "" {
+		body, err := dashboardPage(d.client, "/home")
+		if err != nil {
+			return "", err
+		}
+		d.indexBody = body
+	}
+	return d.indexBody, nil
 }
 
 type Basic struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 }
+
 type Package struct {
 	BillingPeriod string `json:"billing_period,omitempty"`
 	PackageCost   string `json:"package_cost"`
@@ -53,6 +58,7 @@ type Package struct {
 	Balance       string `json:"balance"`
 	Overdue       bool   `json:"overdue"`
 }
+
 type Device struct {
 	ID        int    `json:"id"`
 	IP        string `json:"ip"`
@@ -60,6 +66,7 @@ type Device struct {
 	Stage     string `json:"stage"`
 	SID       string `json:"sid"`
 }
+
 type BillRecord struct {
 	ID           string  `json:"id"`
 	Cost         float64 `json:"cost"`
@@ -67,6 +74,7 @@ type BillRecord struct {
 	UsedDuration string  `json:"used_duration"`
 	Date         string  `json:"date"`
 }
+
 type UsageRecord struct {
 	StartTime    string `json:"start_time"`
 	EndTime      string `json:"end_time"`
@@ -74,6 +82,7 @@ type UsageRecord struct {
 	Traffic      string `json:"traffic"`
 	UsedDuration string `json:"used_duration"`
 }
+
 type RechargeRecord struct {
 	ID   string `json:"id"`
 	Cost string `json:"cost"`
@@ -81,28 +90,29 @@ type RechargeRecord struct {
 }
 
 func (d *DashboardHandler) indexDOM() (*html.Node, error) {
-	b, e := d.getCachedDashboardIndexBody()
-	if e != nil {
-		return nil, e
+	body, err := d.cachedIndexBody()
+	if err != nil {
+		return nil, err
 	}
-	return pageDOM(b)
+	return pageDOM(body)
 }
+
 func (d *DashboardHandler) GetBasic() (*Basic, error) {
-	doc, e := d.indexDOM()
-	if e != nil {
-		return nil, e
+	doc, err := d.indexDOM()
+	if err != nil {
+		return nil, err
 	}
-	vals := map[string]string{}
-	for _, n := range nodes(doc, "label") {
-		if n.Parent != nil {
-			label := nodeText(n)
-			vals[label] = strings.TrimSpace(strings.TrimPrefix(nodeText(n.Parent), label))
+	values := map[string]string{}
+	for _, labelNode := range nodes(doc, "label") {
+		if labelNode.Parent != nil {
+			label := nodeText(labelNode)
+			values[label] = strings.TrimSpace(strings.TrimPrefix(nodeText(labelNode.Parent), label))
 		}
 	}
-	if vals["用户名"] == "" || vals["姓名"] == "" {
+	if values["用户名"] == "" || values["姓名"] == "" {
 		return nil, pageFormatError()
 	}
-	return &Basic{vals["用户名"], vals["姓名"]}, nil
+	return &Basic{ID: values["用户名"], Name: values["姓名"]}, nil
 }
 
 // Read cell text from the DOM. Header names take precedence; known column IDs
@@ -112,52 +122,52 @@ type gridRow struct {
 	sid   string
 }
 
-func tableRows(t *html.Node) []gridRow {
+func tableRows(table *html.Node) []gridRow {
 	headers := map[string]string{}
-	for i, h := range nodes(t, "th") {
-		key := attr(h, "data-col-seq")
+	for i, header := range nodes(table, "th") {
+		key := attr(header, "data-col-seq")
 		if key == "" {
 			key = strconv.Itoa(i)
 		}
-		headers[key] = nodeText(h)
+		headers[key] = nodeText(header)
 	}
-	var out []gridRow
-	for _, r := range nodes(t, "tr") {
-		if !isDataRow(r, t) {
+	var rows []gridRow
+	for _, tr := range nodes(table, "tr") {
+		if !isDataRow(tr, table) {
 			continue
 		}
-		row := gridRow{cells: map[string]string{}, sid: attr(r, "data-key")}
-		for i, c := range nodes(r, "td") {
-			key := attr(c, "data-col-seq")
-			if key == "" && attr(c, "colspan") == "" {
+		row := gridRow{cells: map[string]string{}, sid: attr(tr, "data-key")}
+		for i, cell := range nodes(tr, "td") {
+			key := attr(cell, "data-col-seq")
+			if key == "" && attr(cell, "colspan") == "" {
 				key = strconv.Itoa(i)
 			}
 			if key != "" {
-				row.cells[key] = nodeText(c)
+				row.cells[key] = nodeText(cell)
 				if headers[key] != "" {
-					row.cells[headers[key]] = nodeText(c)
+					row.cells[headers[key]] = nodeText(cell)
 				}
 			}
 		}
 		if len(row.cells) > 0 {
-			out = append(out, row)
+			rows = append(rows, row)
 		}
 	}
-	return out
+	return rows
 }
 
-func isDataRow(r, table *html.Node) bool {
+func isDataRow(tr, table *html.Node) bool {
 	// Yii/Kartik puts page summaries in tbody as well as tfoot. They have
 	// ordinary td cells, but must not be parsed as incomplete records.
-	for _, class := range strings.Fields(attr(r, "class")) {
+	for _, class := range strings.Fields(attr(tr, "class")) {
 		switch class {
 		case "kv-page-summary", "filters":
 			return false
 		}
 	}
-	for p := r.Parent; p != nil && p != table; p = p.Parent {
-		if p.Type == html.ElementNode {
-			switch p.Data {
+	for parent := tr.Parent; parent != nil && parent != table; parent = parent.Parent {
+		if parent.Type == html.ElementNode {
+			switch parent.Data {
 			case "thead", "tfoot", "table":
 				return false
 			}
@@ -166,17 +176,18 @@ func isDataRow(r, table *html.Node) bool {
 	return true
 }
 
-func field(row gridRow, id string, names ...string) string {
-	for _, n := range names {
-		if v := row.cells[n]; v != "" {
-			return v
+func field(row gridRow, columnID string, headers ...string) string {
+	for _, header := range headers {
+		if value := row.cells[header]; value != "" {
+			return value
 		}
 	}
-	return row.cells[id]
+	return row.cells[columnID]
 }
+
 func required(values ...string) bool {
-	for _, s := range values {
-		if strings.TrimSpace(s) == "" {
+	for _, value := range values {
+		if strings.TrimSpace(value) == "" {
 			return false
 		}
 	}
@@ -186,10 +197,10 @@ func required(values ...string) bool {
 // Column IDs are only meaningful within an identified table. In particular,
 // device grids reuse 3/4/6/7 for unrelated values. Require semantic headers
 // before applying the legacy column-ID fallback for individual cells.
-func isPackageTable(t *html.Node) bool {
+func isPackageTable(table *html.Node) bool {
 	var traffic, balance bool
-	for _, h := range nodes(t, "th") {
-		switch nodeText(h) {
+	for _, header := range nodes(table, "th") {
+		switch nodeText(header) {
 		case "已用流量", "使用流量":
 			traffic = true
 		case "余额", "账户余额":
@@ -208,162 +219,185 @@ func parseAmount(value string) (float64, error) {
 }
 
 func (d *DashboardHandler) GetPackage() (*Package, error) {
-	doc, e := d.indexDOM()
-	if e != nil {
-		return nil, e
+	doc, err := d.indexDOM()
+	if err != nil {
+		return nil, err
 	}
-	for _, t := range nodes(doc, "table") {
-		if !isPackageTable(t) {
+	for _, table := range nodes(doc, "table") {
+		if !isPackageTable(table) {
 			continue
 		}
-		for _, r := range tableRows(t) {
-			p := &Package{UsedTraffic: field(r, "3", "已用流量", "使用流量"), UsedDuration: field(r, "4", "已用时长", "使用时长"), PackageCost: field(r, "6", "套餐费用", "消费"), Balance: field(r, "7", "余额", "账户余额")}
-			if !required(p.UsedTraffic, p.UsedDuration, p.PackageCost, p.Balance) {
+		for _, row := range tableRows(table) {
+			pkg := &Package{
+				UsedTraffic:  field(row, "3", "已用流量", "使用流量"),
+				UsedDuration: field(row, "4", "已用时长", "使用时长"),
+				PackageCost:  field(row, "6", "套餐费用", "消费"),
+				Balance:      field(row, "7", "余额", "账户余额"),
+			}
+			if !required(pkg.UsedTraffic, pkg.UsedDuration, pkg.PackageCost, pkg.Balance) {
 				continue
 			}
-			v, e := parseAmount(p.Balance)
-			if e != nil {
+			balance, err := parseAmount(pkg.Balance)
+			if err != nil {
 				return nil, errors.New("账单页面中的余额无效")
 			}
-			p.Overdue = v < 0
-			p.BillingPeriod = field(r, "", "计费周期", "账期")
-			return p, nil
+			pkg.Overdue = balance < 0
+			pkg.BillingPeriod = field(row, "", "计费周期", "账期")
+			return pkg, nil
 		}
 	}
 	return nil, pageFormatError()
 }
-func explicitEmpty(t *html.Node) bool {
-	for _, n := range nodes(t, "td") {
-		for _, c := range strings.Fields(attr(n, "class")) {
-			if c == "empty" {
-				return true
-			}
+
+func hasEmptyClass(node *html.Node) bool {
+	for _, class := range strings.Fields(attr(node, "class")) {
+		if class == "empty" {
+			return true
 		}
-		for _, d := range nodes(n, "div") {
-			for _, c := range strings.Fields(attr(d, "class")) {
-				if c == "empty" {
-					return true
-				}
+	}
+	return false
+}
+
+func explicitEmpty(table *html.Node) bool {
+	for _, cell := range nodes(table, "td") {
+		if hasEmptyClass(cell) {
+			return true
+		}
+		for _, div := range nodes(cell, "div") {
+			if hasEmptyClass(div) {
+				return true
 			}
 		}
 	}
 	return false
 }
+
 func (d *DashboardHandler) GetDevice() ([]Device, error) {
-	doc, e := d.indexDOM()
-	if e != nil {
-		return nil, e
+	doc, err := d.indexDOM()
+	if err != nil {
+		return nil, err
 	}
-	result := []Device{}
-	for _, t := range nodes(doc, "table") {
-		rows := tableRows(t)
+	devices := []Device{}
+	for _, table := range nodes(doc, "table") {
+		rows := tableRows(table)
 		isDevices := false
-		for _, h := range nodes(t, "th") {
-			s := nodeText(h)
-			if strings.Contains(s, "IP") || strings.Contains(s, "上线时间") {
+		for _, header := range nodes(table, "th") {
+			text := nodeText(header)
+			if strings.Contains(text, "IP") || strings.Contains(text, "上线时间") {
 				isDevices = true
 			}
 		}
-		for _, r := range rows {
-			if r.cells["9"] != "" && r.sid != "" {
+		for _, row := range rows {
+			if row.cells["9"] != "" && row.sid != "" {
 				isDevices = true
 			}
 		}
 		if !isDevices {
 			continue
 		}
-		if explicitEmpty(t) {
-			return result, nil
+		if explicitEmpty(table) {
+			return devices, nil
 		}
-		for _, r := range rows {
-			ip, start, stage := field(r, "1", "IP地址", "IP"), field(r, "3", "上线时间"), field(r, "7", "状态")
-			if !required(ip, start, stage, r.sid) {
+		for _, row := range rows {
+			ip, start, stage := field(row, "1", "IP地址", "IP"), field(row, "3", "上线时间"), field(row, "7", "状态")
+			if !required(ip, start, stage, row.sid) {
 				return nil, pageFormatError()
 			}
-			result = append(result, Device{len(result), ip, start, stage, r.sid})
+			devices = append(devices, Device{ID: len(devices), IP: ip, StartTime: start, Stage: stage, SID: row.sid})
 		}
-		if len(result) == 0 {
+		if len(devices) == 0 {
 			return nil, pageFormatError()
 		}
-		return result, nil
+		return devices, nil
 	}
 	return nil, pageFormatError()
 }
+
 func (d *DashboardHandler) records(path, title string, page int) ([]gridRow, error) {
 	if page < 1 {
 		return nil, errors.New("页码必须大于零")
 	}
-	b, e := dashboardPage(d.client, fmt.Sprintf("%s?page=%d&per-page=10", path, page))
-	if e != nil {
-		return nil, e
+	body, err := dashboardPage(d.client, fmt.Sprintf("%s?page=%d&per-page=10", path, page))
+	if err != nil {
+		return nil, err
 	}
-	doc, e := pageDOM(b)
-	if e != nil {
-		return nil, e
+	doc, err := pageDOM(body)
+	if err != nil {
+		return nil, err
 	}
 	titles := nodes(doc, "title")
 	if len(titles) != 1 || nodeText(titles[0]) != title {
 		return nil, pageFormatError()
 	}
-	for _, t := range nodes(doc, "table") {
-		rows := tableRows(t)
+	for _, table := range nodes(doc, "table") {
+		rows := tableRows(table)
 		if len(rows) > 0 {
 			return rows, nil
 		}
-		if explicitEmpty(t) {
+		if explicitEmpty(table) {
 			return []gridRow{}, nil
 		}
 	}
 	return nil, pageFormatError()
 }
+
 func (d *DashboardHandler) GetBill(page int) ([]BillRecord, error) {
-	rows, e := d.records("/log/check-out", "结算清单", page)
-	if e != nil {
-		return nil, e
+	rows, err := d.records("/log/check-out", "结算清单", page)
+	if err != nil {
+		return nil, err
 	}
-	out := []BillRecord{}
-	for _, r := range rows {
-		id, f, v, traffic, duration, date := field(r, "0", "编号"), field(r, "2", "固定费用"), field(r, "3", "实时费用"), field(r, "7", "使用流量"), field(r, "10", "使用时长"), field(r, "12", "结算时间")
-		if !required(id, f, v, traffic, duration, date) {
+	bills := []BillRecord{}
+	for _, row := range rows {
+		id, fixedText, variableText := field(row, "0", "编号"), field(row, "2", "固定费用"), field(row, "3", "实时费用")
+		traffic, duration, date := field(row, "7", "使用流量"), field(row, "10", "使用时长"), field(row, "12", "结算时间")
+		if !required(id, fixedText, variableText, traffic, duration, date) {
 			return nil, pageFormatError()
 		}
-		fixed, e1 := parseAmount(f)
-		variable, e2 := parseAmount(v)
+		fixed, fixedErr := parseAmount(fixedText)
+		variable, variableErr := parseAmount(variableText)
 		cost := fixed + variable
-		if e1 != nil || e2 != nil || math.IsNaN(cost) || math.IsInf(cost, 0) {
+		if fixedErr != nil || variableErr != nil || math.IsNaN(cost) || math.IsInf(cost, 0) {
 			return nil, errors.New("账单金额无效")
 		}
-		out = append(out, BillRecord{id, cost, traffic, duration, date})
+		bills = append(bills, BillRecord{ID: id, Cost: cost, Traffic: traffic, UsedDuration: duration, Date: date})
 	}
-	return out, nil
+	return bills, nil
 }
+
 func (d *DashboardHandler) GetUsageRecords(page int) ([]UsageRecord, error) {
-	rows, e := d.records("/log/detail", "上网明细", page)
-	if e != nil {
-		return nil, e
+	rows, err := d.records("/log/detail", "上网明细", page)
+	if err != nil {
+		return nil, err
 	}
-	out := []UsageRecord{}
-	for _, r := range rows {
-		v := UsageRecord{field(r, "1", "上线时间"), field(r, "2", "下线时间"), field(r, "5", "IP地址"), field(r, "17", "使用流量"), field(r, "19", "使用时长")}
-		if !required(v.StartTime, v.EndTime, v.IP, v.Traffic, v.UsedDuration) {
+	usages := []UsageRecord{}
+	for _, row := range rows {
+		usage := UsageRecord{
+			StartTime:    field(row, "1", "上线时间"),
+			EndTime:      field(row, "2", "下线时间"),
+			IP:           field(row, "5", "IP地址"),
+			Traffic:      field(row, "17", "使用流量"),
+			UsedDuration: field(row, "19", "使用时长"),
+		}
+		if !required(usage.StartTime, usage.EndTime, usage.IP, usage.Traffic, usage.UsedDuration) {
 			return nil, pageFormatError()
 		}
-		out = append(out, v)
+		usages = append(usages, usage)
 	}
-	return out, nil
+	return usages, nil
 }
+
 func (d *DashboardHandler) GetRecharge(page int) ([]RechargeRecord, error) {
-	rows, e := d.records("/log/pay", "缴费清单", page)
-	if e != nil {
-		return nil, e
+	rows, err := d.records("/log/pay", "缴费清单", page)
+	if err != nil {
+		return nil, err
 	}
-	out := []RechargeRecord{}
-	for _, r := range rows {
-		v := RechargeRecord{field(r, "0", "编号"), field(r, "2", "缴费金额"), field(r, "6", "缴费时间")}
-		if !required(v.ID, v.Cost, v.Time) {
+	recharges := []RechargeRecord{}
+	for _, row := range rows {
+		recharge := RechargeRecord{ID: field(row, "0", "编号"), Cost: field(row, "2", "缴费金额"), Time: field(row, "6", "缴费时间")}
+		if !required(recharge.ID, recharge.Cost, recharge.Time) {
 			return nil, pageFormatError()
 		}
-		out = append(out, v)
+		recharges = append(recharges, recharge)
 	}
-	return out, nil
+	return recharges, nil
 }

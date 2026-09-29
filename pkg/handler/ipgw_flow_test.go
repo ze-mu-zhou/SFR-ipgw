@@ -70,8 +70,8 @@ func TestGatewayLoginFlow(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ticketRequests := 0
-			h := NewIpgwHandler()
-			h.client = campusFlowClient(t, func(r *http.Request) (*http.Response, error) {
+			gateway := NewIPGWHandler()
+			gateway.client = campusFlowClient(t, func(r *http.Request) (*http.Response, error) {
 				switch r.URL.Host + r.URL.Path {
 				case "ipgw.neu.edu.cn/":
 					resp := flowResponse(r, 302, "")
@@ -104,12 +104,12 @@ func TestGatewayLoginFlow(t *testing.T) {
 					return nil, nil
 				}
 			})
-			err := h.Login(&model.Account{Username: "alice", Password: "test-password"})
+			err := gateway.Login(&model.Account{Username: "alice", Password: "test-password"})
 			if (err != nil) != tc.bad || ticketRequests != 1 {
 				t.Fatalf("error=%v ticketRequests=%d", err, ticketRequests)
 			}
-			if !tc.bad && (h.GetInfo().Username != "alice" || h.GetInfo().IP != "192.0.2.1") {
-				t.Fatalf("online identity not confirmed: %+v", h.GetInfo())
+			if !tc.bad && (gateway.Info().Username != "alice" || gateway.Info().IP != "192.0.2.1") {
+				t.Fatalf("online identity not confirmed: %+v", gateway.Info())
 			}
 		})
 	}
@@ -117,15 +117,15 @@ func TestGatewayLoginFlow(t *testing.T) {
 
 func TestGatewayLogoutFlow(t *testing.T) {
 	for _, body := range []string{"logout_ok", "rejected"} {
-		h := NewIpgwHandler()
-		h.info.Username = "alice+test"
-		h.client.Transport = testTransport(func(r *http.Request) (*http.Response, error) {
+		gateway := NewIPGWHandler()
+		gateway.info.Username = "alice+test"
+		gateway.client.Transport = testTransport(func(r *http.Request) (*http.Response, error) {
 			if r.URL.Query().Get("username") != "alice+test" || r.URL.Query().Get("action") != "logout" || r.Header.Get("Referer") == "" {
 				t.Fatalf("invalid logout request: %s", r.URL)
 			}
 			return flowResponse(r, 200, body), nil
 		})
-		if err := h.Logout(); (err == nil) != (body == "logout_ok") {
+		if err := gateway.Logout(); (err == nil) != (body == "logout_ok") {
 			t.Fatalf("body=%s error=%v", body, err)
 		}
 	}
@@ -133,9 +133,9 @@ func TestGatewayLogoutFlow(t *testing.T) {
 
 func TestDashboardLoginFlow(t *testing.T) {
 	homeRequests := 0
-	d := NewDashboardHandler()
-	d.cachedDashboardIndexContent = "stale previous session"
-	d.client = campusFlowClient(t, func(r *http.Request) (*http.Response, error) {
+	dashboard := NewDashboardHandler()
+	dashboard.indexBody = "stale previous session"
+	dashboard.client = campusFlowClient(t, func(r *http.Request) (*http.Response, error) {
 		if r.URL.Host != "ipgw.neu.edu.cn:8800" {
 			t.Fatalf("unexpected host: %s", r.URL)
 		}
@@ -150,14 +150,14 @@ func TestDashboardLoginFlow(t *testing.T) {
 			return nil, nil
 		}
 	})
-	if err := d.Login(&model.Account{Username: "alice", Password: "test-password"}); err != nil {
+	if err := dashboard.Login(&model.Account{Username: "alice", Password: "test-password"}); err != nil {
 		t.Fatal(err)
 	}
-	basic, err := d.GetBasic()
+	basic, err := dashboard.GetBasic()
 	if err != nil || basic.ID != "alice" {
 		t.Fatalf("basic=%+v error=%v", basic, err)
 	}
-	if _, err := d.GetPackage(); err != nil {
+	if _, err := dashboard.GetPackage(); err != nil {
 		t.Fatal(err)
 	}
 	if homeRequests != 1 {

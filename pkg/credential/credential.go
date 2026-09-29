@@ -12,9 +12,9 @@ func Reference(username string) string {
 }
 
 func NewReference(username string) (string, error) {
-	var b [16]byte
-	if _, e := rand.Read(b[:]); e != nil {
-		return "", e
+	var random [16]byte
+	if _, err := rand.Read(random[:]); err != nil {
+		return "", err
 	}
-	return fmt.Sprintf("%s/%x", Reference(username), b), nil
+	return fmt.Sprintf("%s/%x", Reference(username), random), nil
 }

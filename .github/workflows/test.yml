@@ -1,6 +1,7 @@
 name: test
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_call:
 
@@ -10,16 +11,26 @@ permissions:
 jobs:
   test:
     strategy:
+      fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest]
+        os: [windows-latest, ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - run: go test ./...
+      - name: Check formatting
+        # Windows 检出为 CRLF，gofmt 会报告所有文件，只在 Linux 上检查
+        if: runner.os == 'Linux'
+        run: test -z "$(gofmt -l . | tee /dev/stderr)"
       - run: go vet ./...
+      - name: Staticcheck
+        run: go run honnef.co/go/tools/cmd/staticcheck@2026.2.1 ./...
+      - run: go test -race ./...
+      - name: Cross-compile all release platforms
+        if: runner.os == 'Linux'
+        run: make all
       - name: Test release packaging
         if: runner.os == 'Linux'
         run: python3 scripts/test_release.py

@@ -16,13 +16,13 @@ import (
 
 func TestUpdateConfigReloadsBeforeChange(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.json")
-	a, _ := NewStoreHandler(path)
-	a.Config = &model.Config{Accounts: []*model.Account{{Username: "alice", CredentialRef: "old"}}}
-	if err := a.Persist(); err != nil {
+	first, _ := NewStoreHandler(path)
+	first.Config = &model.Config{Accounts: []*model.Account{{Username: "alice", CredentialRef: "old"}}}
+	if err := first.Persist(); err != nil {
 		t.Fatal(err)
 	}
-	b, _ := NewStoreHandler(path)
-	if err := b.Load(); err != nil {
+	second, _ := NewStoreHandler(path)
+	if err := second.Load(); err != nil {
 		t.Fatal(err)
 	}
 	vault := map[string]bool{"old": true, "new": true}
@@ -32,34 +32,34 @@ func TestUpdateConfigReloadsBeforeChange(t *testing.T) {
 		delete(vault, ref)
 		// The lock must remain held during cleanup, not just during rename.
 		called := false
-		_, err := b.UpdateConfig(func(*model.Config) error { called = true; return nil })
+		_, err := second.UpdateConfig(func(*model.Config) error { called = true; return nil })
 		if err == nil || called {
 			t.Error("another update entered during credential cleanup")
 		}
 		return nil
 	}
-	warning, err := a.UpdateConfig(func(c *model.Config) error {
-		c.GetAccount("alice").CredentialRef = "new"
-		return c.AddAccount("bob", "")
+	warning, err := first.UpdateConfig(func(config *model.Config) error {
+		config.GetAccount("alice").CredentialRef = "new"
+		return config.AddAccount("bob", "")
 	})
 	if warning != nil || err != nil {
 		t.Fatalf("warning=%v error=%v", warning, err)
 	}
 	// b still has the old in-memory reference, but must change the latest disk state.
-	warning, err = b.UpdateConfig(func(c *model.Config) error {
-		if c.GetAccount("alice").CredentialRef != "new" || c.GetAccount("bob") == nil {
+	warning, err = second.UpdateConfig(func(config *model.Config) error {
+		if config.GetAccount("alice").CredentialRef != "new" || config.GetAccount("bob") == nil {
 			t.Fatal("change callback received stale configuration")
 		}
-		c.SetDefaultAccount("alice")
+		config.SetDefaultAccount("alice")
 		return nil
 	})
 	if warning != nil || err != nil {
 		t.Fatalf("warning=%v error=%v", warning, err)
 	}
-	if err := a.Load(); err != nil {
+	if err := first.Load(); err != nil {
 		t.Fatal(err)
 	}
-	if a.Config.DefaultAccount != "alice" || a.Config.GetAccount("bob") == nil || !vault[a.Config.GetAccount("alice").CredentialRef] {
+	if first.Config.DefaultAccount != "alice" || first.Config.GetAccount("bob") == nil || !vault[first.Config.GetAccount("alice").CredentialRef] {
 		t.Fatal("stale writer lost changes or restored a deleted credential")
 	}
 }

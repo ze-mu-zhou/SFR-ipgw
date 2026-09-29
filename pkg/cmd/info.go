@@ -40,18 +40,20 @@ type infoReport struct {
 }
 
 var InfoCommand = &cli.Command{
-	Name: "info", Usage: "query campus billing information", UseShortOptionHandling: true,
+	Name:                   "info",
+	Usage:                  "查询校园网计费信息",
+	UseShortOptionHandling: true,
 	Flags: append(credentialFlags(),
-		&cli.BoolFlag{Name: "all", Aliases: []string{"a"}, Usage: "query all information (first page of each record type)"},
-		&cli.BoolFlag{Name: "package", Aliases: []string{"i"}, Usage: "query traffic, balance and package"},
-		&cli.BoolFlag{Name: "device", Aliases: []string{"d"}, Usage: "query online devices"},
-		&cli.IntFlag{Name: "recharge", Aliases: []string{"r"}, Value: 1, Usage: "recharge records page"},
-		&cli.IntFlag{Name: "bill", Aliases: []string{"b"}, Value: 1, Usage: "billing records page"},
-		&cli.IntFlag{Name: "log", Aliases: []string{"l"}, Value: 1, Usage: "usage records page"},
-		&cli.BoolFlag{Name: "json", Usage: "write structured JSON to stdout"},
-		&cli.StringFlag{Name: "snapshot", Usage: "save a successful traffic snapshot to a NEW file"},
-		&cli.StringFlag{Name: "period", Usage: "explicitly declare billing period when the server does not provide it"},
-		&cli.IntFlag{Name: "traffic-base", Usage: "confirmed unit base for KB/MB/GB: 1000 or 1024"},
+		&cli.BoolFlag{Name: "all", Aliases: []string{"a"}, Usage: "查询全部信息（各类记录只查第一页）"},
+		&cli.BoolFlag{Name: "package", Aliases: []string{"i"}, Usage: "查询流量、余额和套餐"},
+		&cli.BoolFlag{Name: "device", Aliases: []string{"d"}, Usage: "查询在线设备"},
+		&cli.IntFlag{Name: "recharge", Aliases: []string{"r"}, Value: 1, Usage: "充值记录`页码`"},
+		&cli.IntFlag{Name: "bill", Aliases: []string{"b"}, Value: 1, Usage: "扣费记录`页码`"},
+		&cli.IntFlag{Name: "log", Aliases: []string{"l"}, Value: 1, Usage: "使用记录`页码`"},
+		&cli.BoolFlag{Name: "json", Usage: "以 JSON 格式输出到标准输出"},
+		&cli.StringFlag{Name: "snapshot", Usage: "把成功查询的流量快照保存到新`文件`（文件不能已存在）"},
+		&cli.StringFlag{Name: "period", Usage: "服务器未提供计费周期时，手动声明计费`周期`"},
+		&cli.IntFlag{Name: "traffic-base", Usage: "已确认的 KB/MB/GB 单位`基数`：1000 或 1024", DefaultText: "未指定"},
 	),
 	Action:       runInfo,
 	OnUsageError: onUsageError,
@@ -63,18 +65,18 @@ func runInfo(ctx *cli.Context) error {
 	var account *model.Account
 	err := validateInfoOptions(ctx)
 	if err == nil {
-		account, err = getAccountByContext(ctx)
+		account, err = accountFromContext(ctx)
 	}
 	if err != nil {
 		report.Sections["authentication"] = querySection{Status: "error", Error: err.Error()}
 		queryErr = err
 	} else {
-		h := handler.NewDashboardHandler()
-		if err = h.Login(account); err != nil {
+		dashboard := handler.NewDashboardHandler()
+		if err = dashboard.Login(account); err != nil {
 			report.Sections["authentication"] = querySection{Status: "error", Error: err.Error()}
 			queryErr = fmt.Errorf("登录失败：%w", err)
 		} else {
-			queryErr = collectInfo(ctx, h, report)
+			queryErr = collectInfo(ctx, dashboard, report)
 		}
 	}
 	report.CompletedAt = time.Now().UTC()
@@ -96,9 +98,9 @@ func runInfo(ctx *cli.Context) error {
 		report.Error = queryErr.Error()
 	}
 	if ctx.Bool("json") {
-		enc := json.NewEncoder(ctx.App.Writer)
-		enc.SetIndent("", "  ")
-		if err := enc.Encode(report); err != nil {
+		encoder := json.NewEncoder(ctx.App.Writer)
+		encoder.SetIndent("", "  ")
+		if err := encoder.Encode(report); err != nil {
 			return err
 		}
 	} else {
@@ -164,24 +166,24 @@ func collectInfo(ctx *cli.Context, reader dashboardReader, report *infoReport) e
 	record("basic", basic, err)
 	all := ctx.Bool("all")
 	if all || ctx.Bool("package") || ctx.String("snapshot") != "" {
-		v, e := reader.GetPackage()
-		record("package", v, e)
+		pkg, err := reader.GetPackage()
+		record("package", pkg, err)
 	}
 	if all || ctx.Bool("device") {
-		v, e := reader.GetDevice()
-		record("devices", v, e)
+		devices, err := reader.GetDevice()
+		record("devices", devices, err)
 	}
 	if all || ctx.IsSet("log") {
-		v, e := reader.GetUsageRecords(ctx.Int("log"))
-		record("usage", v, e)
+		usages, err := reader.GetUsageRecords(ctx.Int("log"))
+		record("usage", usages, err)
 	}
 	if all || ctx.IsSet("bill") {
-		v, e := reader.GetBill(ctx.Int("bill"))
-		record("bills", v, e)
+		bills, err := reader.GetBill(ctx.Int("bill"))
+		record("bills", bills, err)
 	}
 	if all || ctx.IsSet("recharge") {
-		v, e := reader.GetRecharge(ctx.Int("recharge"))
-		record("recharges", v, e)
+		recharges, err := reader.GetRecharge(ctx.Int("recharge"))
+		record("recharges", recharges, err)
 	}
 	if len(failures) > 0 {
 		return errors.New(strings.Join(failures, "; "))
@@ -189,10 +191,10 @@ func collectInfo(ctx *cli.Context, reader dashboardReader, report *infoReport) e
 	return nil
 }
 
-func printInfoReport(w io.Writer, r *infoReport) {
+func printInfoReport(w io.Writer, report *infoReport) {
 	titles := map[string]string{"authentication": "登录", "basic": "基本信息", "package": "套餐信息", "devices": "在线设备", "usage": "使用历史", "bills": "扣费记录", "recharges": "充值记录", "snapshot": "快照"}
 	for _, name := range []string{"authentication", "basic", "package", "devices", "usage", "bills", "recharges", "snapshot"} {
-		section, ok := r.Sections[name]
+		section, ok := report.Sections[name]
 		if !ok {
 			continue
 		}
@@ -201,64 +203,64 @@ func printInfoReport(w io.Writer, r *infoReport) {
 			fmt.Fprintf(w, "  失败：%s\n\n", section.Error)
 			continue
 		}
-		switch v := section.Data.(type) {
+		switch data := section.Data.(type) {
 		case *handler.Basic:
-			fmt.Fprintf(w, "  姓名：%s\n  学号：%s\n", v.Name, v.ID)
+			fmt.Fprintf(w, "  姓名：%s\n  学号：%s\n", data.Name, data.ID)
 		case *handler.Package:
-			fmt.Fprintf(w, "  已用：%s\n  时长：%s\n  消费：%s 元\n  余额：%s 元\n", v.UsedTraffic, v.UsedDuration, v.PackageCost, v.Balance)
-			if v.BillingPeriod != "" {
-				fmt.Fprintf(w, "  计费周期：%s\n", v.BillingPeriod)
+			fmt.Fprintf(w, "  已用：%s\n  时长：%s\n  消费：%s 元\n  余额：%s 元\n", data.UsedTraffic, data.UsedDuration, data.PackageCost, data.Balance)
+			if data.BillingPeriod != "" {
+				fmt.Fprintf(w, "  计费周期：%s\n", data.BillingPeriod)
 			}
 		case []handler.Device:
-			if len(v) == 0 {
+			if len(data) == 0 {
 				fmt.Fprintln(w, "  无在线设备")
 			}
-			for _, x := range v {
-				fmt.Fprintf(w, "  #%d  %s  %s  SID=%s  %s\n", x.ID, x.IP, x.StartTime, x.SID, x.Stage)
+			for _, device := range data {
+				fmt.Fprintf(w, "  #%d  %s  %s  SID=%s  %s\n", device.ID, device.IP, device.StartTime, device.SID, device.Stage)
 			}
 		case []handler.UsageRecord:
-			if len(v) == 0 {
+			if len(data) == 0 {
 				fmt.Fprintln(w, "  无记录")
 			}
-			for _, x := range v {
-				fmt.Fprintf(w, "  %s — %s  %s  %s  %s\n", x.StartTime, x.EndTime, x.IP, x.Traffic, x.UsedDuration)
+			for _, usage := range data {
+				fmt.Fprintf(w, "  %s — %s  %s  %s  %s\n", usage.StartTime, usage.EndTime, usage.IP, usage.Traffic, usage.UsedDuration)
 			}
 		case []handler.BillRecord:
-			if len(v) == 0 {
+			if len(data) == 0 {
 				fmt.Fprintln(w, "  无记录")
 			}
-			for _, x := range v {
-				fmt.Fprintf(w, "  #%s  %s  %.2f 元  %s\n", x.ID, x.Date, x.Cost, x.Traffic)
+			for _, bill := range data {
+				fmt.Fprintf(w, "  #%s  %s  %.2f 元  %s\n", bill.ID, bill.Date, bill.Cost, bill.Traffic)
 			}
 		case []handler.RechargeRecord:
-			if len(v) == 0 {
+			if len(data) == 0 {
 				fmt.Fprintln(w, "  无记录")
 			}
-			for _, x := range v {
-				fmt.Fprintf(w, "  #%s  %s  %s 元\n", x.ID, x.Time, x.Cost)
+			for _, recharge := range data {
+				fmt.Fprintf(w, "  #%s  %s  %s 元\n", recharge.ID, recharge.Time, recharge.Cost)
 			}
 		case map[string]string:
-			fmt.Fprintf(w, "  已保存：%s\n", v["path"])
+			fmt.Fprintf(w, "  已保存：%s\n", data["path"])
 		}
 		fmt.Fprintln(w)
 	}
 }
 
-func snapshotFromReport(r *infoReport, period string, base int) (*model.Snapshot, error) {
-	for _, s := range r.Sections {
-		if s.Status != "ok" {
+func snapshotFromReport(report *infoReport, period string, base int) (*model.Snapshot, error) {
+	for _, section := range report.Sections {
+		if section.Status != "ok" {
 			return nil, errors.New("查询包含失败项，不能保存有效快照")
 		}
 	}
-	basic, ok := r.Sections["basic"].Data.(*handler.Basic)
+	basic, ok := report.Sections["basic"].Data.(*handler.Basic)
 	if !ok || basic == nil || basic.ID == "" {
 		return nil, errors.New("快照缺少已确认账号")
 	}
-	pkg, ok := r.Sections["package"].Data.(*handler.Package)
+	pkg, ok := report.Sections["package"].Data.(*handler.Package)
 	if !ok || pkg == nil {
 		return nil, errors.New("快照缺少用量数据")
 	}
-	m, err := model.ParseTraffic(pkg.UsedTraffic, base)
+	traffic, err := model.ParseTraffic(pkg.UsedTraffic, base)
 	if err != nil {
 		return nil, err
 	}
@@ -272,7 +274,7 @@ func snapshotFromReport(r *infoReport, period string, base int) (*model.Snapshot
 	} else if period != "" {
 		source = "user"
 	}
-	return &model.Snapshot{SchemaVersion: 1, AccountID: basic.ID, CapturedAt: r.CompletedAt, QueryStatus: "ok", Source: "ipgw-dashboard", BillingPeriod: period, PeriodSource: source, Traffic: m}, nil
+	return &model.Snapshot{SchemaVersion: 1, AccountID: basic.ID, CapturedAt: report.CompletedAt, QueryStatus: "ok", Source: "ipgw-dashboard", BillingPeriod: period, PeriodSource: source, Traffic: traffic}, nil
 }
 
 func writeNewJSON(path string, value any) error {
@@ -280,24 +282,24 @@ func writeNewJSON(path string, value any) error {
 	if err != nil {
 		return err
 	}
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
 		return err
 	}
 	success := false
 	defer func() {
-		f.Close()
+		file.Close()
 		if !success {
 			os.Remove(path)
 		}
 	}()
-	if _, err = f.Write(append(data, '\n')); err != nil {
+	if _, err = file.Write(append(data, '\n')); err != nil {
 		return err
 	}
-	if err = f.Sync(); err != nil {
+	if err = file.Sync(); err != nil {
 		return err
 	}
-	if err = f.Close(); err != nil {
+	if err = file.Close(); err != nil {
 		return err
 	}
 	success = true

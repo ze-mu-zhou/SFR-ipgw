@@ -54,8 +54,8 @@ func TestUpdateConfigCredentialLifecycle(t *testing.T) {
 				if err := disk.Load(); err != nil {
 					t.Fatal(err)
 				}
-				for _, a := range disk.Config.Accounts {
-					if a.CredentialRef == ref {
+				for _, account := range disk.Config.Accounts {
+					if account.CredentialRef == ref {
 						t.Fatalf("deleted credential still referenced on disk: %s", ref)
 					}
 				}
@@ -78,7 +78,7 @@ func TestUpdateConfigCredentialLifecycle(t *testing.T) {
 					vault["new"] = "new-password"
 					config.Accounts = append(config.Accounts, &model.Account{Username: "new-user", CredentialRef: "new"})
 				case "del":
-					if err := config.DelAccount("test"); err != nil {
+					if err := config.DeleteAccount("test"); err != nil {
 						return err
 					}
 				}
@@ -117,8 +117,8 @@ func TestUpdateConfigCredentialLifecycle(t *testing.T) {
 			if (vault["old"] != "") != wantOld || (vault["new"] != "") != wantNew {
 				t.Fatalf("unexpected vault contents: %v", vault)
 			}
-			for _, a := range disk.Config.Accounts {
-				if vault[a.CredentialRef] == "" {
+			for _, account := range disk.Config.Accounts {
+				if vault[account.CredentialRef] == "" {
 					t.Fatal("persisted account has no usable credential")
 				}
 			}

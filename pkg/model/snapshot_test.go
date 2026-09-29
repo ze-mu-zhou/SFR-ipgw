@@ -17,9 +17,9 @@ func TestParseTrafficUnitsAndPrecision(t *testing.T) {
 		{"0 B", 0, 0, 1},
 		{"1024 KB", 1024, 1048576, 1024},
 	} {
-		m, err := ParseTraffic(tc.display, tc.base)
-		if err != nil || m.Bytes != tc.bytes || m.ResolutionBytes != tc.resolution {
-			t.Errorf("%s: got %+v, %v", tc.display, m, err)
+		measurement, err := ParseTraffic(tc.display, tc.base)
+		if err != nil || measurement.Bytes != tc.bytes || measurement.ResolutionBytes != tc.resolution {
+			t.Errorf("%s: got %+v, %v", tc.display, measurement, err)
 		}
 	}
 	for _, display := range []string{"1 GB", "NaN B", "-2 B", "1 Gb/s", "999999999999999999999 TB", "无数据"} {
@@ -33,8 +33,8 @@ func TestParseTrafficUnitsAndPrecision(t *testing.T) {
 }
 
 func sampleSnapshot() Snapshot {
-	m, _ := ParseTraffic("1.00 GB", 1000)
-	return Snapshot{SchemaVersion: 1, AccountID: "test-user", CapturedAt: time.Date(2026, 9, 16, 0, 0, 0, 0, time.UTC), QueryStatus: "ok", Source: "ipgw-dashboard", BillingPeriod: "2026-09", PeriodSource: "user", Traffic: m}
+	measurement, _ := ParseTraffic("1.00 GB", 1000)
+	return Snapshot{SchemaVersion: 1, AccountID: "test-user", CapturedAt: time.Date(2026, 9, 16, 0, 0, 0, 0, time.UTC), QueryStatus: "ok", Source: "ipgw-dashboard", BillingPeriod: "2026-09", PeriodSource: "user", Traffic: measurement}
 }
 
 func TestCompareSnapshots(t *testing.T) {
@@ -54,20 +54,20 @@ func TestCompareSnapshots(t *testing.T) {
 		name   string
 		mutate func(*Snapshot)
 	}{
-		{"different account", func(s *Snapshot) { s.AccountID = "other" }},
-		{"new cycle", func(s *Snapshot) { s.BillingPeriod = "2026-10" }},
-		{"unknown cycle", func(s *Snapshot) { s.BillingPeriod = ""; s.PeriodSource = "unknown" }},
-		{"failed query", func(s *Snapshot) { s.QueryStatus = "error" }},
-		{"time reversed", func(s *Snapshot) { s.CapturedAt = before.CapturedAt }},
-		{"counter reset", func(s *Snapshot) { s.Traffic, _ = ParseTraffic("0.50 GB", 1000) }},
-		{"tampered counter", func(s *Snapshot) { s.Traffic.Bytes++ }},
-		{"base mismatch", func(s *Snapshot) { s.Traffic, _ = ParseTraffic("1.02 GB", 1024) }},
-		{"unknown schema", func(s *Snapshot) { s.SchemaVersion = 9 }},
+		{"different account", func(snapshot *Snapshot) { snapshot.AccountID = "other" }},
+		{"new cycle", func(snapshot *Snapshot) { snapshot.BillingPeriod = "2026-10" }},
+		{"unknown cycle", func(snapshot *Snapshot) { snapshot.BillingPeriod = ""; snapshot.PeriodSource = "unknown" }},
+		{"failed query", func(snapshot *Snapshot) { snapshot.QueryStatus = "error" }},
+		{"time reversed", func(snapshot *Snapshot) { snapshot.CapturedAt = before.CapturedAt }},
+		{"counter reset", func(snapshot *Snapshot) { snapshot.Traffic, _ = ParseTraffic("0.50 GB", 1000) }},
+		{"tampered counter", func(snapshot *Snapshot) { snapshot.Traffic.Bytes++ }},
+		{"base mismatch", func(snapshot *Snapshot) { snapshot.Traffic, _ = ParseTraffic("1.02 GB", 1024) }},
+		{"unknown schema", func(snapshot *Snapshot) { snapshot.SchemaVersion = 9 }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			s := after
-			tc.mutate(&s)
-			if _, err := CompareSnapshots(before, s); err == nil {
+			snapshot := after
+			tc.mutate(&snapshot)
+			if _, err := CompareSnapshots(before, snapshot); err == nil {
 				t.Fatal("unsafe comparison accepted")
 			}
 		})

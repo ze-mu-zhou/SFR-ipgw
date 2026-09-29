@@ -4,11 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/ze-mu-zhou/SFR-ipgw/pkg/credential"
-	"github.com/ze-mu-zhou/SFR-ipgw/pkg/model"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/ze-mu-zhou/SFR-ipgw/pkg/credential"
+	"github.com/ze-mu-zhou/SFR-ipgw/pkg/model"
 )
 
 var deleteCredential = credential.Delete
@@ -19,86 +20,88 @@ type StoreHandler struct {
 }
 
 func NewStoreHandler(path string) (*StoreHandler, error) {
-	p, e := getConfigPath(path)
-	if e != nil {
-		return nil, e
+	resolved, err := configPath(path)
+	if err != nil {
+		return nil, err
 	}
-	return &StoreHandler{Path: p}, nil
+	return &StoreHandler{Path: resolved}, nil
 }
-func getConfigPath(path string) (string, error) {
+
+func configPath(path string) (string, error) {
 	if path != "" {
 		return path, nil
 	}
-	home, e := os.UserHomeDir()
-	if e != nil {
-		return "", e
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
 	}
 	return filepath.Join(home, ".ipgw"), nil
 }
 
 // Persist replaces the complete configuration. Read-modify-write callers must
 // use UpdateConfig, which reloads the latest state under the same lock.
-func (h *StoreHandler) Persist() error {
-	if h.Config == nil {
+func (s *StoreHandler) Persist() error {
+	if s.Config == nil {
 		return errors.New("未加载配置")
 	}
-	lock, err := lockConfig(h.Path)
+	lock, err := lockConfig(s.Path)
 	if err != nil {
 		return err
 	}
 	defer lock.Close()
-	return h.persistLocked()
+	return s.persistLocked()
 }
 
-func (h *StoreHandler) persistLocked() error {
-	data, e := json.MarshalIndent(h.Config, "", "  ")
-	if e != nil {
-		return e
+func (s *StoreHandler) persistLocked() error {
+	data, err := json.MarshalIndent(s.Config, "", "  ")
+	if err != nil {
+		return err
 	}
-	f, e := os.CreateTemp(filepath.Dir(h.Path), ".ipgw-*")
-	if e != nil {
-		return e
+	file, err := os.CreateTemp(filepath.Dir(s.Path), ".ipgw-*")
+	if err != nil {
+		return err
 	}
-	tmp := f.Name()
+	tmp := file.Name()
 	defer os.Remove(tmp)
-	if e = f.Chmod(0600); e != nil {
-		f.Close()
-		return e
+	if err = file.Chmod(0600); err != nil {
+		file.Close()
+		return err
 	}
-	if _, e = f.Write(data); e != nil {
-		f.Close()
-		return e
+	if _, err = file.Write(data); err != nil {
+		file.Close()
+		return err
 	}
-	if e = f.Sync(); e != nil {
-		f.Close()
-		return e
+	if err = file.Sync(); err != nil {
+		file.Close()
+		return err
 	}
-	if e = f.Close(); e != nil {
-		return e
+	if err = file.Close(); err != nil {
+		return err
 	}
-	return os.Rename(tmp, h.Path)
+	return os.Rename(tmp, s.Path)
 }
-func (h *StoreHandler) Load() error {
-	data, e := os.ReadFile(h.Path)
-	if os.IsNotExist(e) {
-		h.Config = &model.Config{}
+
+func (s *StoreHandler) Load() error {
+	data, err := os.ReadFile(s.Path)
+	if os.IsNotExist(err) {
+		s.Config = &model.Config{}
 		return nil
 	}
-	if e != nil {
-		return fmt.Errorf("加载配置失败：%w", e)
+	if err != nil {
+		return fmt.Errorf("加载配置失败：%w", err)
 	}
 	config := &model.Config{}
 	if strings.TrimSpace(string(data)) != "" {
-		if e = json.Unmarshal(data, config); e != nil {
-			return fmt.Errorf("配置无效：%w", e)
+		if err = json.Unmarshal(data, config); err != nil {
+			return fmt.Errorf("配置无效：%w", err)
 		}
 	}
-	for _, a := range config.Accounts {
-		if a == nil || a.Username == "" {
+	for _, account := range config.Accounts {
+		if account == nil || account.Username == "" {
 			return errors.New("配置中存在无效账号")
 		}
 	}
-	h.Config = config
+	s.Config = config
 	return nil
 }
 
@@ -107,20 +110,20 @@ func (h *StoreHandler) Load() error {
 // 保存失败时保留旧配置和旧凭据，仅回收本次新建的凭据；
 // 保存成功后才清理不再引用的旧凭据。
 // warning 表示配置已经保存、但旧凭据清理失败；err 表示修改未提交。
-func (h *StoreHandler) UpdateConfig(change func(*model.Config) error) (warning, err error) {
-	if h.Config == nil {
+func (s *StoreHandler) UpdateConfig(change func(*model.Config) error) (warning, err error) {
+	if s.Config == nil {
 		return nil, errors.New("未加载配置")
 	}
-	lock, err := lockConfig(h.Path)
+	lock, err := lockConfig(s.Path)
 	if err != nil {
 		return nil, err
 	}
 	defer lock.Close()
-	latest := &StoreHandler{Path: h.Path}
+	latest := &StoreHandler{Path: s.Path}
 	if err := latest.Load(); err != nil {
 		return nil, err
 	}
-	original, old := h.Config, latest.Config
+	original, old := s.Config, latest.Config
 	next := *old
 	next.Accounts = make([]*model.Account, len(old.Accounts))
 	for i, account := range old.Accounts {
@@ -129,11 +132,11 @@ func (h *StoreHandler) UpdateConfig(change func(*model.Config) error) (warning, 
 	}
 	err = change(&next)
 	if err == nil {
-		h.Config = &next
-		err = h.persistLocked()
+		s.Config = &next
+		err = s.persistLocked()
 	}
 	if err != nil {
-		h.Config = original
+		s.Config = original
 		if cleanupErr := cleanupCredentials(&next, old); cleanupErr != nil {
 			err = errors.Join(err, fmt.Errorf("清理本次新建凭据失败：%w", cleanupErr))
 		}

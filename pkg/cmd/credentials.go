@@ -11,8 +11,8 @@ import (
 
 func credentialFlags() []cli.Flag {
 	return []cli.Flag{
-		&cli.StringFlag{Name: "username", Aliases: []string{"u"}, Usage: "student number (uses stored default when omitted)"},
-		&cli.BoolFlag{Name: "ask-password", Usage: "prompt for password instead of using a saved credential"},
+		&cli.StringFlag{Name: "username", Aliases: []string{"u"}, Usage: "`学号`（省略时使用配置中的默认账号）"},
+		&cli.BoolFlag{Name: "ask-password", Usage: "交互输入密码，不使用已保存的密码"},
 	}
 }
 

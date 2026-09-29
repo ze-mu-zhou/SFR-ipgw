@@ -20,15 +20,15 @@ import (
 func updateArchive(t *testing.T, name string, content []byte) []byte {
 	t.Helper()
 	var data bytes.Buffer
-	z := zip.NewWriter(&data)
-	entry, err := z.Create(name)
+	writer := zip.NewWriter(&data)
+	entry, err := writer.Create(name)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := entry.Write(content); err != nil {
 		t.Fatal(err)
 	}
-	if err := z.Close(); err != nil {
+	if err := writer.Close(); err != nil {
 		t.Fatal(err)
 	}
 	return data.Bytes()
@@ -55,7 +55,7 @@ func flowUpdater(t *testing.T, archive []byte, digest, version string) (*UpdateH
 		t.Fatal(err)
 	}
 	var requests []string
-	u := testUpdateHandler(updateTransport(func(r *http.Request) (*http.Response, error) {
+	updater := testUpdateHandler(updateTransport(func(r *http.Request) (*http.Response, error) {
 		requests = append(requests, r.URL.String())
 		var data []byte
 		switch r.URL.String() {
@@ -70,8 +70,8 @@ func flowUpdater(t *testing.T, archive []byte, digest, version string) (*UpdateH
 	}))
 	// The full Update pipeline installs into a disposable directory, never the
 	// currently running test executable or a user's installed program.
-	u.executablePath = func() (string, string, error) { return current, dir, nil }
-	return u, current, &requests
+	updater.executablePath = func() (string, string, error) { return current, dir, nil }
+	return updater, current, &requests
 }
 
 func archiveDigest(data []byte) string {
@@ -94,8 +94,8 @@ func TestUpdateFlowRejectsInvalidAssetsWithoutReplacingCurrent(t *testing.T) {
 		{"missing executable", archiveDigest(wrongEntry), "无效的 Go 可执行文件", wrongEntry},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			u, current, _ := flowUpdater(t, tc.archive, tc.digest, "v1.1.0")
-			if err := u.Update(); err == nil || !strings.Contains(err.Error(), tc.wantError) {
+			updater, current, _ := flowUpdater(t, tc.archive, tc.digest, "v1.1.0")
+			if err := updater.Update(); err == nil || !strings.Contains(err.Error(), tc.wantError) {
 				t.Fatalf("expected %q, got %v", tc.wantError, err)
 			}
 			data, err := os.ReadFile(current)
@@ -113,8 +113,8 @@ func TestUpdateFlowRejectsInvalidAssetsWithoutReplacingCurrent(t *testing.T) {
 func TestUpdateFlowDoesNotDownloadOlderOrEqualVersion(t *testing.T) {
 	releaseBuild(t)
 	for _, version := range []string{"v0.9.0", "v1.0.0"} {
-		u, _, requests := flowUpdater(t, nil, "", version)
-		if err := u.Update(); err != nil || len(*requests) != 1 {
+		updater, _, requests := flowUpdater(t, nil, "", version)
+		if err := updater.Update(); err != nil || len(*requests) != 1 {
 			t.Fatalf("version=%s error=%v requests=%v", version, err, *requests)
 		}
 	}
@@ -137,8 +137,8 @@ func TestUpdateFlowInstallsValidatedExecutableAndRetainsBackup(t *testing.T) {
 		t.Fatal(err)
 	}
 	archive := updateArchive(t, updateExecutableName(), binary)
-	u, current, requests := flowUpdater(t, archive, archiveDigest(archive), "v1.1.0")
-	if err := u.Update(); err != nil {
+	updater, current, requests := flowUpdater(t, archive, archiveDigest(archive), "v1.1.0")
+	if err := updater.Update(); err != nil {
 		t.Fatal(err)
 	}
 	if len(*requests) != 2 {

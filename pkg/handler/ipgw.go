@@ -4,10 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/ze-mu-zhou/SFR-ipgw/pkg/model"
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/ze-mu-zhou/SFR-ipgw/pkg/model"
 )
 
 type gatewayInfo struct {
@@ -19,39 +20,44 @@ type gatewayInfo struct {
 	Seconds  *int64   `json:"sum_seconds"`
 	Balance  *float64 `json:"user_balance"`
 }
-type IpgwHandler struct {
+
+type IPGWHandler struct {
 	info      *model.Info
 	client    *http.Client
-	oriInfo   gatewayInfo
+	gateway   gatewayInfo
 	kickReady bool
 }
 
-func NewIpgwHandler() *IpgwHandler          { return &IpgwHandler{info: &model.Info{}, client: newSession()} }
-func (h *IpgwHandler) GetInfo() *model.Info { return h.info }
-func (h *IpgwHandler) Login(a *model.Account) error {
-	p, err := a.GetPassword()
+func NewIPGWHandler() *IPGWHandler {
+	return &IPGWHandler{info: &model.Info{}, client: newSession()}
+}
+
+func (h *IPGWHandler) Info() *model.Info { return h.info }
+
+func (h *IPGWHandler) Login(account *model.Account) error {
+	password, err := account.GetPassword()
 	if err != nil {
 		return err
 	}
-	b, e := h.login(a.Username, p)
-	if e != nil {
-		return e
+	body, err := h.login(account.Username, password)
+	if err != nil {
+		return err
 	}
-	var r struct {
+	var result struct {
 		Code    *int   `json:"code"`
 		Message string `json:"message"`
 	}
-	if e = json.Unmarshal([]byte(b), &r); e != nil {
+	if err = json.Unmarshal([]byte(body), &result); err != nil {
 		return errors.New("网关登录响应无效")
 	}
-	if r.Code == nil {
+	if result.Code == nil {
 		return errors.New("网关登录响应缺少状态码")
 	}
-	if *r.Code != 0 {
-		if r.Message != "" {
-			return fmt.Errorf("网关登录失败：%s（代码 %d）", r.Message, *r.Code)
+	if *result.Code != 0 {
+		if result.Message != "" {
+			return fmt.Errorf("网关登录失败：%s（代码 %d）", result.Message, *result.Code)
 		}
-		return fmt.Errorf("网关登录失败（代码 %d）", *r.Code)
+		return fmt.Errorf("网关登录失败（代码 %d）", *result.Code)
 	}
 	if err := h.ParseBasicInfo(); err != nil {
 		return err
@@ -61,183 +67,192 @@ func (h *IpgwHandler) Login(a *model.Account) error {
 	}
 	return nil
 }
-func (h *IpgwHandler) NEUAuth(u, p string) error {
+
+func (h *IPGWHandler) NEUAuth(username, password string) error {
 	h.kickReady = false
-	return loginCAS(h.client, casLoginURL, u, p)
+	return loginCAS(h.client, casLoginURL, username, password)
 }
-func (h *IpgwHandler) login(u, p string) (string, error) {
-	if e := h.NEUAuth(u, p); e != nil {
-		return "", e
+
+func (h *IPGWHandler) login(username, password string) (string, error) {
+	if err := h.NEUAuth(username, password); err != nil {
+		return "", err
 	}
-	return h.requestLoginApi()
+	return h.requestLoginAPI()
 }
-func (h *IpgwHandler) FetchUsageInfo() error {
-	if e := h.getJsonIpgwData(); e != nil {
-		return e
+
+func (h *IPGWHandler) FetchUsageInfo() error {
+	if err := h.fetchGatewayInfo(); err != nil {
+		return err
 	}
-	d := h.oriInfo
-	if *d.Error != "ok" {
+	gateway := h.gateway
+	if *gateway.Error != "ok" {
 		return errors.New("网关账号未登录")
 	}
-	if d.Bytes == nil || d.Seconds == nil || d.Balance == nil || *d.Bytes < 0 || *d.Seconds < 0 {
+	if gateway.Bytes == nil || gateway.Seconds == nil || gateway.Balance == nil || *gateway.Bytes < 0 || *gateway.Seconds < 0 {
 		return errors.New("网关用量响应缺少字段或字段无效")
 	}
-	h.info.Traffic = *d.Bytes
-	h.info.UsedTime = *d.Seconds
-	h.info.Balance = *d.Balance
+	h.info.Traffic = *gateway.Bytes
+	h.info.UsedTime = *gateway.Seconds
+	h.info.Balance = *gateway.Balance
 	return nil
 }
-func (h *IpgwHandler) requestLoginApi() (string, error) {
-	r, e := h.client.Get("https://ipgw.neu.edu.cn/")
-	if e != nil {
-		return "", safeRequestError(e)
+
+func (h *IPGWHandler) requestLoginAPI() (string, error) {
+	resp, err := h.client.Get("https://ipgw.neu.edu.cn/")
+	if err != nil {
+		return "", safeRequestError(err)
 	}
-	q := r.Request.URL.RawQuery
-	if _, e = responseBody(r); e != nil {
-		return "", e
+	query := resp.Request.URL.RawQuery
+	if _, err = responseBody(resp); err != nil {
+		return "", err
 	}
-	service := "http://ipgw.neu.edu.cn/srun_portal_sso?" + q
-	r, e = h.client.Get(casLoginURL + "?" + url.Values{"service": {service}}.Encode())
-	if e != nil {
-		return "", safeRequestError(e)
+	service := "http://ipgw.neu.edu.cn/srun_portal_sso?" + query
+	resp, err = h.client.Get(casLoginURL + "?" + url.Values{"service": {service}}.Encode())
+	if err != nil {
+		return "", safeRequestError(err)
 	}
-	if r.StatusCode >= 300 && r.StatusCode < 400 {
+	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
 		// 票据绑定 http service，网关按此校验；仅将传输改写为 https
-		loc, le := r.Location()
-		r.Body.Close()
-		if le != nil {
+		location, locationErr := resp.Location()
+		resp.Body.Close()
+		if locationErr != nil {
 			return "", errors.New("统一认证未返回网关票据")
 		}
-		loc.Scheme = "https"
-		if r, e = h.client.Get(loc.String()); e != nil {
-			return "", safeRequestError(e)
+		location.Scheme = "https"
+		if resp, err = h.client.Get(location.String()); err != nil {
+			return "", safeRequestError(err)
 		}
 	}
-	u := r.Request.URL
-	if _, e = responseBody(r); e != nil {
-		return "", e
+	portal := resp.Request.URL
+	if _, err = responseBody(resp); err != nil {
+		return "", err
 	}
-	if u.Hostname() != "ipgw.neu.edu.cn" || !strings.HasPrefix(u.Path, "/srun_portal") {
+	if portal.Hostname() != "ipgw.neu.edu.cn" || !strings.HasPrefix(portal.Path, "/srun_portal") {
 		return "", errors.New("统一认证未返回网关票据")
 	}
-	r, e = h.client.Get("https://ipgw.neu.edu.cn/v1" + u.RequestURI())
-	if e != nil {
-		return "", safeRequestError(e)
+	resp, err = h.client.Get("https://ipgw.neu.edu.cn/v1" + portal.RequestURI())
+	if err != nil {
+		return "", safeRequestError(err)
 	}
-	return responseBody(r)
+	return responseBody(resp)
 }
-func (h *IpgwHandler) getJsonIpgwData() error {
-	req, e := http.NewRequest("GET", "https://ipgw.neu.edu.cn/cgi-bin/rad_user_info", nil)
-	if e != nil {
-		return e
+
+func (h *IPGWHandler) fetchGatewayInfo() error {
+	req, err := http.NewRequest(http.MethodGet, "https://ipgw.neu.edu.cn/cgi-bin/rad_user_info", nil)
+	if err != nil {
+		return err
 	}
 	req.Header.Set("Accept", "application/json")
-	r, e := h.client.Do(req)
-	if e != nil {
-		return safeRequestError(e)
+	resp, err := h.client.Do(req)
+	if err != nil {
+		return safeRequestError(err)
 	}
-	b, e := responseBody(r)
-	if e != nil {
-		return e
+	body, err := responseBody(resp)
+	if err != nil {
+		return err
 	}
-	var d gatewayInfo
-	if e = json.Unmarshal([]byte(b), &d); e != nil {
+	var gateway gatewayInfo
+	if err = json.Unmarshal([]byte(body), &gateway); err != nil {
 		return errors.New("网关信息响应无效")
 	}
-	if d.Error == nil {
+	if gateway.Error == nil {
 		return errors.New("网关响应缺少状态")
 	}
-	if *d.Error == "ok" {
-		if !required(d.Username, d.OnlineIP) {
+	if *gateway.Error == "ok" {
+		if !required(gateway.Username, gateway.OnlineIP) {
 			return errors.New("网关响应缺少账号或 IP")
 		}
-	} else if *d.Error != "not_online_error" || d.ClientIP == "" {
+	} else if *gateway.Error != "not_online_error" || gateway.ClientIP == "" {
 		return errors.New("网关返回了失败状态")
 	}
-	h.oriInfo = d
+	h.gateway = gateway
 	return nil
 }
-func (h *IpgwHandler) ParseBasicInfo() error {
-	if e := h.getJsonIpgwData(); e != nil {
-		return e
+
+func (h *IPGWHandler) ParseBasicInfo() error {
+	if err := h.fetchGatewayInfo(); err != nil {
+		return err
 	}
 	h.info.Username = ""
-	h.info.IP = h.oriInfo.ClientIP
-	if *h.oriInfo.Error == "ok" {
-		h.info.Username = h.oriInfo.Username
-		h.info.IP = h.oriInfo.OnlineIP
+	h.info.IP = h.gateway.ClientIP
+	if *h.gateway.Error == "ok" {
+		h.info.Username = h.gateway.Username
+		h.info.IP = h.gateway.OnlineIP
 	}
 	return nil
 }
-func (h *IpgwHandler) Logout() error {
-	req, e := http.NewRequest("GET", "https://ipgw.neu.edu.cn/cgi-bin/srun_portal?"+url.Values{"action": {"logout"}, "username": {h.info.Username}}.Encode(), nil)
-	if e != nil {
-		return e
+
+func (h *IPGWHandler) Logout() error {
+	req, err := http.NewRequest(http.MethodGet, "https://ipgw.neu.edu.cn/cgi-bin/srun_portal?"+url.Values{"action": {"logout"}, "username": {h.info.Username}}.Encode(), nil)
+	if err != nil {
+		return err
 	}
 	req.Header.Set("Referer", "https://ipgw.neu.edu.cn/srun_portal_success?ac_id=1")
-	r, e := h.client.Do(req)
-	if e != nil {
-		return safeRequestError(e)
+	resp, err := h.client.Do(req)
+	if err != nil {
+		return safeRequestError(err)
 	}
-	b, e := responseBody(r)
-	if e != nil {
-		return e
+	body, err := responseBody(resp)
+	if err != nil {
+		return err
 	}
-	if strings.TrimSpace(b) != "logout_ok" {
+	if strings.TrimSpace(body) != "logout_ok" {
 		return errors.New("网关拒绝了注销请求")
 	}
 	return nil
 }
-func (h *IpgwHandler) CheckConnection() (connected, loggedIn bool, err error) {
+
+func (h *IPGWHandler) CheckConnection() (connected, loggedIn bool, err error) {
 	if err = h.ParseBasicInfo(); err != nil {
 		return false, false, err
 	}
 	return h.info.IP != "", h.info.Username != "", nil
 }
-func (h *IpgwHandler) Kick(sid string) (bool, error) {
+
+func (h *IPGWHandler) Kick(sid string) (bool, error) {
 	if sid == "" {
 		return false, errors.New("需要设备会话 ID")
 	}
 	if !h.kickReady {
-		if _, e := dashboardPage(h.client, "/sso/neusoft/index"); e != nil {
-			return false, e
+		if _, err := dashboardPage(h.client, "/sso/neusoft/index"); err != nil {
+			return false, err
 		}
 		h.kickReady = true
 	}
-	b, e := dashboardPage(h.client, "/home")
-	if e != nil {
+	body, err := dashboardPage(h.client, "/home")
+	if err != nil {
 		h.kickReady = false
-		return false, e
+		return false, err
 	}
-	doc, e := pageDOM(b)
-	if e != nil {
-		return false, e
+	doc, err := pageDOM(body)
+	if err != nil {
+		return false, err
 	}
 	token := ""
-	for _, n := range nodes(doc, "meta") {
-		if attr(n, "name") == "csrf-token" {
-			token = attr(n, "content")
+	for _, meta := range nodes(doc, "meta") {
+		if attr(meta, "name") == "csrf-token" {
+			token = attr(meta, "content")
 		}
 	}
 	if token == "" {
 		h.kickReady = false
 		return false, pageFormatError()
 	}
-	req, e := http.NewRequest("POST", "https://ipgw.neu.edu.cn:8800/home/delete?"+url.Values{"id": {sid}}.Encode(), strings.NewReader(url.Values{"_csrf-8800": {token}}.Encode()))
-	if e != nil {
-		return false, e
+	req, err := http.NewRequest(http.MethodPost, "https://ipgw.neu.edu.cn:8800/home/delete?"+url.Values{"id": {sid}}.Encode(), strings.NewReader(url.Values{"_csrf-8800": {token}}.Encode()))
+	if err != nil {
+		return false, err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Referer", "https://ipgw.neu.edu.cn:8800/home/index")
-	r, e := h.client.Do(req)
-	if e != nil {
-		return false, safeRequestError(e)
+	resp, err := h.client.Do(req)
+	if err != nil {
+		return false, safeRequestError(err)
 	}
-	b, e = responseBody(r)
-	if e != nil {
-		return false, e
+	body, err = responseBody(resp)
+	if err != nil {
+		return false, err
 	}
-	if !strings.Contains(b, "下线请求已发出") {
+	if !strings.Contains(body, "下线请求已发出") {
 		return false, errors.New("服务器未确认设备已下线")
 	}
 	return true, nil

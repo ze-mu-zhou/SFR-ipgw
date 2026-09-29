@@ -136,6 +136,7 @@ func loginCAS(client *http.Client, loginURL, username, password string) error {
 	if !ok {
 		return errors.New("学校登录公钥不是 RSA 公钥")
 	}
+	//lint:ignore SA1019 学校 CAS 登录脚本使用 PKCS #1 v1.5 加密，服务端协议决定，客户端无法更换
 	ciphertext, err := rsa.EncryptPKCS1v15(rand.Reader, key, []byte(username+password))
 	if err != nil {
 		return errors.New("无法加密登录信息，请检查账号密码长度")

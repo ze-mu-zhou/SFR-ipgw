@@ -9,75 +9,76 @@ import (
 	"strings"
 )
 
-func GetExecutablePathAndDir() (path, dir string, err error) {
-	p, e := os.Executable()
-	if e != nil {
-		return "", "", e
+func ExecutablePathAndDir() (path, dir string, err error) {
+	executable, err := os.Executable()
+	if err != nil {
+		return "", "", err
 	}
-	path, err = filepath.Abs(p)
+	path, err = filepath.Abs(executable)
 	return path, filepath.Dir(path), err
 }
 
 // Unzip rejects traversal, links, special files and existing files.
 func Unzip(zipFile, destDir string) error {
-	z, e := zip.OpenReader(zipFile)
-	if e != nil {
-		return e
+	archive, err := zip.OpenReader(zipFile)
+	if err != nil {
+		return err
 	}
-	defer z.Close()
-	root, e := filepath.Abs(destDir)
-	if e != nil {
-		return e
+	defer archive.Close()
+	root, err := filepath.Abs(destDir)
+	if err != nil {
+		return err
 	}
-	if e = os.MkdirAll(root, 0700); e != nil {
-		return e
+	if err = os.MkdirAll(root, 0700); err != nil {
+		return err
 	}
-	if e = rejectSymlinks(root); e != nil {
-		return e
+	if err = rejectSymlinks(root); err != nil {
+		return err
 	}
 	var total uint64
-	for _, f := range z.File {
-		name := f.Name
+	for _, entry := range archive.File {
+		name := entry.Name
 		if name == "" || strings.HasPrefix(name, "/") || strings.ContainsAny(name, "\\:") || filepath.IsAbs(name) {
 			return fmt.Errorf("压缩包路径不安全：%q", name)
 		}
 		target := filepath.Join(root, filepath.FromSlash(name))
-		rel, e := filepath.Rel(root, target)
-		if e != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		rel, err := filepath.Rel(root, target)
+		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
 			return fmt.Errorf("压缩包路径逃逸目标目录：%q", name)
 		}
-		if f.Mode()&os.ModeType != 0 && !f.FileInfo().IsDir() {
+		if entry.Mode()&os.ModeType != 0 && !entry.FileInfo().IsDir() {
 			return fmt.Errorf("不支持的压缩包条目：%q", name)
 		}
-		if f.UncompressedSize64 > 256<<20-total {
+		if entry.UncompressedSize64 > 256<<20-total {
 			return fmt.Errorf("压缩包超出 256 MiB 解压限制")
 		}
-		total += f.UncompressedSize64
-		if e = rejectSymlinks(target); e != nil {
-			return e
+		total += entry.UncompressedSize64
+		if err = rejectSymlinks(target); err != nil {
+			return err
 		}
-		if f.FileInfo().IsDir() {
-			if e = os.MkdirAll(target, 0700); e != nil {
-				return e
+		if entry.FileInfo().IsDir() {
+			if err = os.MkdirAll(target, 0700); err != nil {
+				return err
 			}
 			continue
 		}
-		if e = os.MkdirAll(filepath.Dir(target), 0700); e != nil {
-			return e
+		if err = os.MkdirAll(filepath.Dir(target), 0700); err != nil {
+			return err
 		}
-		if e = extractFile(f, target); e != nil {
-			return e
+		if err = extractFile(entry, target); err != nil {
+			return err
 		}
 	}
 	return nil
 }
+
 func rejectSymlinks(path string) error {
 	for {
-		info, e := os.Lstat(path)
-		if e != nil && !os.IsNotExist(e) {
-			return e
+		info, err := os.Lstat(path)
+		if err != nil && !os.IsNotExist(err) {
+			return err
 		}
-		if e == nil && info.Mode()&os.ModeSymlink != 0 {
+		if err == nil && info.Mode()&os.ModeSymlink != 0 {
 			return fmt.Errorf("解压路径中存在符号链接：%s", path)
 		}
 		parent := filepath.Dir(path)
@@ -87,15 +88,16 @@ func rejectSymlinks(path string) error {
 		path = parent
 	}
 }
-func extractFile(f *zip.File, target string) error {
-	in, e := f.Open()
-	if e != nil {
-		return e
+
+func extractFile(entry *zip.File, target string) error {
+	in, err := entry.Open()
+	if err != nil {
+		return err
 	}
 	defer in.Close()
-	out, e := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
-	if e != nil {
-		return e
+	out, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	if err != nil {
+		return err
 	}
 	_, copyErr := io.Copy(out, in)
 	closeErr := out.Close()

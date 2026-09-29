@@ -22,12 +22,10 @@ func (i *Info) FormattedTraffic() string {
 }
 
 func (i *Info) FormattedUsedTime() string {
-	time := i.UsedTime
-	h := time / 3600
-	m := (time % 3600) / 60
-	s := time % 3600 % 60
-
-	return fmt.Sprintf("%d:%02d:%02d", h, m, s)
+	hours := i.UsedTime / 3600
+	minutes := i.UsedTime % 3600 / 60
+	seconds := i.UsedTime % 60
+	return fmt.Sprintf("%d:%02d:%02d", hours, minutes, seconds)
 }
 
 func (i *Info) FormattedBalance() string {
