@@ -22,6 +22,7 @@ PLATFORM_LIST = \
 	linux-386 \
 	linux-amd64 \
 	linux-arm \
+	linux-arm64 \
 	linux-mips64 \
 	linux-mips64le \
 	freebsd-386 \
@@ -46,6 +47,9 @@ linux-amd64:
 
 linux-arm:
 	GOARCH=arm GOOS=linux $(GO_BUILD) -o $(BUILD_DIR)/$@/$(NAME) ${MAIN_ENTRY}
+
+linux-arm64:
+	GOARCH=arm64 GOOS=linux $(GO_BUILD) -o $(BUILD_DIR)/$@/$(NAME) ${MAIN_ENTRY}
 
 linux-mips64:
 	GOARCH=mips64 GOOS=linux $(GO_BUILD) -o $(BUILD_DIR)/$@/$(NAME) ${MAIN_ENTRY}
