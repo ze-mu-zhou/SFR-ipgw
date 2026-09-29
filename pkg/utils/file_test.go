@@ -79,3 +79,38 @@ func TestSemverNumericPrereleaseAndInvalidInput(t *testing.T) {
 		t.Fatal("valid version rejected")
 	}
 }
+
+func symlinkOrSkip(t *testing.T, target, link string) {
+	t.Helper()
+	if err := os.Symlink(target, link); err != nil {
+		t.Skipf("cannot create symlink: %v", err)
+	}
+}
+
+// macOS 的临时目录位于 /var -> /private/var 之下，目标目录的上级链接不应被拒绝。
+func TestUnzipAllowsSymlinkedDestinationParent(t *testing.T) {
+	base := t.TempDir()
+	actual := filepath.Join(base, "actual")
+	if err := os.Mkdir(actual, 0700); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(base, "link")
+	symlinkOrSkip(t, actual, link)
+	if err := Unzip(testZip(t, "sub/ipgw", 0755), filepath.Join(link, "dest")); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(filepath.Join(actual, "dest", "sub", "ipgw")); err != nil || string(data) != "data" {
+		t.Fatalf("bad extraction %q %v", data, err)
+	}
+}
+
+func TestUnzipRejectsSymlinkInsideDestination(t *testing.T) {
+	dest, outside := t.TempDir(), t.TempDir()
+	symlinkOrSkip(t, outside, filepath.Join(dest, "sub"))
+	if err := Unzip(testZip(t, "sub/ipgw", 0755), dest); err == nil {
+		t.Fatal("extracted through a symlink inside the destination")
+	}
+	if _, err := os.Stat(filepath.Join(outside, "ipgw")); !os.IsNotExist(err) {
+		t.Fatalf("wrote outside destination: %v", err)
+	}
+}

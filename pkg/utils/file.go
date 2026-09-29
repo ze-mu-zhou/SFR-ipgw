@@ -32,7 +32,9 @@ func Unzip(zipFile, destDir string) error {
 	if err = os.MkdirAll(root, 0700); err != nil {
 		return err
 	}
-	if err = rejectSymlinks(root); err != nil {
+	// 目标目录及其上级是调用方选定的已有路径（macOS 的 /var、/tmp 本身就是
+	// 符号链接），解析为真实路径后，只检查压缩包条目在目录内产生的路径。
+	if root, err = filepath.EvalSymlinks(root); err != nil {
 		return err
 	}
 	var total uint64
@@ -53,7 +55,7 @@ func Unzip(zipFile, destDir string) error {
 			return fmt.Errorf("压缩包超出 256 MiB 解压限制")
 		}
 		total += entry.UncompressedSize64
-		if err = rejectSymlinks(target); err != nil {
+		if err = rejectSymlinks(root, target); err != nil {
 			return err
 		}
 		if entry.FileInfo().IsDir() {
@@ -72,8 +74,9 @@ func Unzip(zipFile, destDir string) error {
 	return nil
 }
 
-func rejectSymlinks(path string) error {
-	for {
+// rejectSymlinks 检查 root 以内（不含 root）从 path 向上的每一级路径。
+func rejectSymlinks(root, path string) error {
+	for path != root {
 		info, err := os.Lstat(path)
 		if err != nil && !os.IsNotExist(err) {
 			return err
@@ -83,10 +86,11 @@ func rejectSymlinks(path string) error {
 		}
 		parent := filepath.Dir(path)
 		if parent == path {
-			return nil
+			return fmt.Errorf("解压路径不在目标目录内：%s", path)
 		}
 		path = parent
 	}
+	return nil
 }
 
 func extractFile(entry *zip.File, target string) error {
