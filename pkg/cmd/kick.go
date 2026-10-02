@@ -37,9 +37,9 @@ var KickCommand = &cli.Command{
 				continue
 			}
 			failed++
-			console.Infof("#%s: 失败\n", sid)
+			_, _ = fmt.Fprintf(ctx.App.ErrWriter, "#%s: 失败\n", sid)
 			if err != nil {
-				console.Infof("\t%v\n", err)
+				_, _ = fmt.Fprintf(ctx.App.ErrWriter, "\t%v\n", err)
 			}
 		}
 		if failed > 0 {
@@ -47,4 +47,5 @@ var KickCommand = &cli.Command{
 		}
 		return nil
 	},
+	OnUsageError: onUsageError,
 }

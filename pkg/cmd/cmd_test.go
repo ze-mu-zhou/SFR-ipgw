@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/urfave/cli/v2"
 )
 
 func TestLocalizeError(t *testing.T) {
@@ -48,4 +50,22 @@ func TestHelpIsChinese(t *testing.T) {
 			t.Errorf("%v help lacks Chinese usage header:\n%s", args, text)
 		}
 	}
+}
+
+// Every command must localize usage errors and show its help, like the others.
+func TestAllCommandsHandleUsageErrors(t *testing.T) {
+	var check func(prefix string, commands []*cli.Command)
+	check = func(prefix string, commands []*cli.Command) {
+		for _, command := range commands {
+			if command.Name == "help" { // urfave/cli 内置命令
+				continue
+			}
+			name := strings.TrimSpace(prefix + " " + command.Name)
+			if command.OnUsageError == nil {
+				t.Errorf("%s has no OnUsageError", name)
+			}
+			check(name, command.Subcommands)
+		}
+	}
+	check("", App.Commands)
 }

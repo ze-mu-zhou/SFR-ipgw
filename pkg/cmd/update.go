@@ -28,4 +28,5 @@ var UpdateCommand = &cli.Command{
 		console.Infoln("更新成功")
 		return nil
 	},
+	OnUsageError: onUsageError,
 }

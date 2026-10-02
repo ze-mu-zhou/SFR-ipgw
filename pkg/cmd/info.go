@@ -149,12 +149,8 @@ func validateInfoOptions(ctx *cli.Context) error {
 	return nil
 }
 
+// collectInfo 假定选项已通过 validateInfoOptions 校验。
 func collectInfo(ctx *cli.Context, reader dashboardReader, report *infoReport) error {
-	for _, name := range []string{"log", "bill", "recharge"} {
-		if ctx.Int(name) < 1 {
-			return fmt.Errorf("%s 页码必须大于零", name)
-		}
-	}
 	var failures []string
 	record := func(name string, data any, err error) {
 		if err != nil {

@@ -1,4 +1,6 @@
-// Package credential stores passwords in the current Windows user's credential vault.
+// Package credential stores passwords in the operating system's credential
+// store: Windows Credential Manager on Windows, and the system keyring
+// (macOS Keychain or a Linux Secret Service such as GNOME Keyring) elsewhere.
 package credential
 
 import (

@@ -19,4 +19,5 @@ var VersionCommand = &cli.Command{
 		}
 		return nil
 	},
+	OnUsageError: onUsageError,
 }
