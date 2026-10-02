@@ -70,7 +70,7 @@ var configAccountAddCommand = &cli.Command{
 			return nil
 		})
 		if err != nil {
-			return fmt.Errorf("添加账号失败：\n\t%v", err)
+			return fmt.Errorf("添加账号失败：%w", err)
 		}
 		if warning != nil {
 			_, _ = fmt.Fprintf(ctx.App.ErrWriter, "警告：%v\n", warning)
@@ -104,7 +104,7 @@ var configAccountDeleteCommand = &cli.Command{
 			return config.DeleteAccount(username)
 		})
 		if err != nil {
-			return fmt.Errorf("删除账号失败：\n\t%v", err)
+			return fmt.Errorf("删除账号失败：%w", err)
 		}
 		if warning != nil {
 			_, _ = fmt.Fprintf(ctx.App.ErrWriter, "警告：%v\n", warning)
@@ -131,7 +131,7 @@ var configAccountSetCommand = &cli.Command{
 		}
 		username := ctx.String("username")
 		if store.Config.GetAccount(username) == nil {
-			return fmt.Errorf("修改账号失败：\n\t未找到 '%s'", username)
+			return fmt.Errorf("修改账号失败：%w", fmt.Errorf("未找到 '%s'", username))
 		}
 
 		changePassword := !ctx.Bool("default") || ctx.Bool("ask-password")
@@ -146,11 +146,11 @@ var configAccountSetCommand = &cli.Command{
 			// Another process may have deleted the account while we prompted.
 			current := config.GetAccount(username)
 			if current == nil {
-				return fmt.Errorf("修改账号失败：\n\t未找到 '%s'", username)
+				return fmt.Errorf("未找到 '%s'", username)
 			}
 			if changePassword {
 				if err := current.SetPassword(password); err != nil {
-					return fmt.Errorf("设置密码失败：\n\t%v", err)
+					return fmt.Errorf("设置密码失败：%w", err)
 				}
 			}
 			if ctx.Bool("default") {
@@ -159,7 +159,7 @@ var configAccountSetCommand = &cli.Command{
 			return nil
 		})
 		if err != nil {
-			return err
+			return fmt.Errorf("修改账号失败：%w", err)
 		}
 		if warning != nil {
 			_, _ = fmt.Fprintf(ctx.App.ErrWriter, "警告：%v\n", warning)

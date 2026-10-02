@@ -24,11 +24,11 @@ var LoginCommand = &cli.Command{
 		}
 		gateway := handler.NewIPGWHandler()
 		if err = login(gateway, account); err != nil {
-			return fmt.Errorf("登录失败：\n\t%v", err)
+			return fmt.Errorf("登录失败：%w", err)
 		}
 		if ctx.Bool("info") {
 			if err = gateway.FetchUsageInfo(); err != nil {
-				return fmt.Errorf("查询信息失败：\n\t%v", err)
+				return fmt.Errorf("查询信息失败：%w", err)
 			}
 			info := gateway.Info()
 			console.Infof("\tIP\t%16s\n\t余额\t%16s\n\t流量\t%16s\n\t时长\t%16s\n",

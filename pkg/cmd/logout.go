@@ -27,7 +27,7 @@ var LogoutCommand = &cli.Command{
 		}
 		info := gateway.Info()
 		if err := gateway.Logout(); err != nil {
-			return fmt.Errorf("注销账号 '%s' 失败：\n\t%v", info.Username, err)
+			return fmt.Errorf("注销账号 '%s' 失败：%w", info.Username, err)
 		}
 		console.Infof("账号 '%s' 已注销\n", info.Username)
 		return nil

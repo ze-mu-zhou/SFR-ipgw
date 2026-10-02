@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -68,4 +69,27 @@ func TestAllCommandsHandleUsageErrors(t *testing.T) {
 		}
 	}
 	check("", App.Commands)
+}
+
+func TestFormatError(t *testing.T) {
+	cause := errors.New("当前不在校园网内")
+	wrapped := fmt.Errorf("修改账号失败：%w", fmt.Errorf("设置密码失败：%w", cause))
+	if !errors.Is(wrapped, cause) {
+		t.Fatal("wrapping lost the original error")
+	}
+	for _, tc := range []struct {
+		err  error
+		want string
+	}{
+		{cause, "当前不在校园网内"},
+		{fmt.Errorf("登录失败：%w", cause), "登录失败：\n\t当前不在校园网内"},
+		{wrapped, "修改账号失败：\n\t设置密码失败：\n\t\t当前不在校园网内"},
+		// 无前缀的透传包装和多重 %w 不拆分，保持原文。
+		{fmt.Errorf("%w", cause), "当前不在校园网内"},
+		{fmt.Errorf("安装失败：%w；回滚失败：%w", cause, cause), "安装失败：当前不在校园网内；回滚失败：当前不在校园网内"},
+	} {
+		if got := FormatError(tc.err); got != tc.want {
+			t.Errorf("FormatError(%q) = %q, want %q", tc.err, got, tc.want)
+		}
+	}
 }

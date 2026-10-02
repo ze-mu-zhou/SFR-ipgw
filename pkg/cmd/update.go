@@ -23,7 +23,7 @@ var UpdateCommand = &cli.Command{
 			return nil
 		}
 		if err = updater.Update(); err != nil {
-			return fmt.Errorf("更新失败：\n\t%v", err)
+			return fmt.Errorf("更新失败：%w", err)
 		}
 		console.Infoln("更新成功")
 		return nil

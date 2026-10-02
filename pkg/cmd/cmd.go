@@ -71,7 +71,7 @@ func loginUseDefaultAccount(ctx *cli.Context) error {
 	console.Infof("使用账号 '%s'\n", account.Username)
 
 	if err = login(handler.NewIPGWHandler(), account); err != nil {
-		return fmt.Errorf("登录失败：\n\t%v", err)
+		return fmt.Errorf("登录失败：%w", err)
 	}
 	return nil
 }
@@ -156,6 +156,29 @@ func localizeError(err error) error {
 		}
 	}
 	return err
+}
+
+// FormatError 把 fmt.Errorf("前缀：%w", err) 形成的错误链按层拆成多行，
+// 内层逐级缩进。错误值本身保持单行，排版只在最终输出时进行。
+func FormatError(err error) string {
+	var text strings.Builder
+	for depth := 0; err != nil; depth++ {
+		if depth > 0 {
+			text.WriteString("\n" + strings.Repeat("\t", depth))
+		}
+		message := err.Error()
+		inner := errors.Unwrap(err)
+		if inner != nil {
+			if prefix, ok := strings.CutSuffix(message, inner.Error()); ok && strings.TrimSpace(prefix) != "" {
+				text.WriteString(strings.TrimSpace(prefix))
+				err = inner
+				continue
+			}
+		}
+		text.WriteString(message)
+		break
+	}
+	return text.String()
 }
 
 func init() {

@@ -9,6 +9,6 @@ import (
 
 func main() {
 	if err := cmd.Run(os.Args); err != nil {
-		console.Fatalln(err.Error())
+		console.Fatalln(cmd.FormatError(err))
 	}
 }

@@ -236,7 +236,7 @@ func replaceExecutable(current, candidate string, rename func(string, string) er
 	}
 	if err = rename(candidate, current); err != nil {
 		if rollbackErr := rename(backup, current); rollbackErr != nil {
-			return backup, fmt.Errorf("安装失败：%v；回滚失败：%v；请从 %s 恢复可执行文件", err, rollbackErr, backup)
+			return backup, fmt.Errorf("安装失败：%w；回滚失败：%w；请从 %s 恢复可执行文件", err, rollbackErr, backup)
 		}
 		return "", fmt.Errorf("安装失败，已恢复原可执行文件：%w", err)
 	}
