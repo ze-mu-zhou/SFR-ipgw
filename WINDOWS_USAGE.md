@@ -27,6 +27,8 @@
 
 配置文件只保留账号和凭据引用，密码保存在 Windows 凭据管理器。macOS 和 Linux 分别使用钥匙串和 Secret Service 保存密码，见 [README](README.md)。
 
+从旧版本升级后，Windows 凭据的存储格式已改变，之前保存的密码无法再读取。请用 `.\ipgw.exe config account set -u 学号` 重新保存密码；旧条目（目标名以 `ipgw/account/` 开头、不带 `ipgw:` 前缀）可在“凭据管理器 → Windows 凭据”中手动删除。
+
 保存账号后，直接运行 `.\ipgw.exe` 与 `.\ipgw.exe login` 使用相同的账号和密码获取逻辑：优先使用默认账号及已保存的凭据；未保存密码时，在交互终端隐藏输入密码，非交互环境则报错提示。
 
 删除账号（`config account del`）会同时删除凭据管理器中的对应条目；`config account set` 修改密码后，旧凭据条目也会自动清理。
