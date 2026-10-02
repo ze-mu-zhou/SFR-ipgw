@@ -68,7 +68,8 @@ type Device struct {
 	SID       string `json:"sid"`
 }
 
-// 金额字段统一使用十进制字符串，与页面显示一致，避免浮点舍入。
+// BillRecord 是一条扣费记录。金额字段统一使用十进制字符串，
+// 与页面显示一致，避免浮点舍入。
 type BillRecord struct {
 	ID           string `json:"id"`
 	Cost         string `json:"cost"`
