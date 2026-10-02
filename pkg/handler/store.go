@@ -38,21 +38,9 @@ func configPath(path string) (string, error) {
 	return filepath.Join(home, ".ipgw"), nil
 }
 
-// persist replaces the complete configuration without reloading it first, so it
-// is kept unexported. Callers must use UpdateConfig, which reloads the latest
-// state under the same lock before changing it.
-func (s *StoreHandler) persist() error {
-	if s.Config == nil {
-		return errors.New("未加载配置")
-	}
-	lock, err := lockConfig(s.Path)
-	if err != nil {
-		return err
-	}
-	defer lock.Close()
-	return s.persistLocked()
-}
-
+// persistLocked replaces the complete configuration without reloading it, so
+// callers must hold the configuration lock. Use UpdateConfig, which reloads the
+// latest state under the same lock before changing it.
 func (s *StoreHandler) persistLocked() error {
 	data, err := json.MarshalIndent(s.Config, "", "  ")
 	if err != nil {

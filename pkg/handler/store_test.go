@@ -1,12 +1,27 @@
 package handler
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/ze-mu-zhou/SFR-ipgw/pkg/model"
 )
+
+// persist writes s.Config as-is under the lock, to seed test fixtures. It does
+// not reload first, so production code must use UpdateConfig instead.
+func (s *StoreHandler) persist() error {
+	if s.Config == nil {
+		return errors.New("未加载配置")
+	}
+	lock, err := lockConfig(s.Path)
+	if err != nil {
+		return err
+	}
+	defer lock.Close()
+	return s.persistLocked()
+}
 
 func TestLoadMissingDoesNotCreateConfig(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config")
