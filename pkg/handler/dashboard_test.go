@@ -58,7 +58,7 @@ func TestBillDOMWhitespaceAndHeaders(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(rows) != 1 || rows[0].Cost != 6 || rows[0].Traffic != "1 GB" {
+	if len(rows) != 1 || rows[0].Cost != "6.00" || rows[0].Traffic != "1 GB" {
 		t.Fatalf("unexpected rows: %+v", rows)
 	}
 }
@@ -77,7 +77,7 @@ func TestRecordsIgnorePageSummaries(t *testing.T) {
 		}},
 		{"bills", "结算清单", `<td data-col-seq="0">123</td><td data-col-seq="2">5.25</td><td data-col-seq="3">0.75</td><td data-col-seq="7">1 GB</td><td data-col-seq="10">3600</td><td data-col-seq="12">2026-09-01</td>`, func(dashboard *DashboardHandler) (int, error) {
 			rows, err := dashboard.GetBill(1)
-			if err == nil && len(rows) == 1 && (rows[0].ID != "123" || rows[0].Cost != 6) {
+			if err == nil && len(rows) == 1 && (rows[0].ID != "123" || rows[0].Cost != "6.00") {
 				t.Errorf("unexpected bill: %+v", rows)
 			}
 			return len(rows), err
@@ -211,7 +211,7 @@ func TestStandardTableHeaderMapping(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(rows) != 1 || rows[0].Cost != 5 || rows[0].Traffic != "4 GB" {
+	if len(rows) != 1 || rows[0].Cost != "5" || rows[0].Traffic != "4 GB" {
 		t.Fatalf("rows=%+v", rows)
 	}
 }

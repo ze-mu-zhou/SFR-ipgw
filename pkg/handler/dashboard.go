@@ -3,8 +3,9 @@ package handler
 import (
 	"errors"
 	"fmt"
-	"math"
+	"math/big"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -67,12 +68,13 @@ type Device struct {
 	SID       string `json:"sid"`
 }
 
+// 金额字段统一使用十进制字符串，与页面显示一致，避免浮点舍入。
 type BillRecord struct {
-	ID           string  `json:"id"`
-	Cost         float64 `json:"cost"`
-	Traffic      string  `json:"traffic"`
-	UsedDuration string  `json:"used_duration"`
-	Date         string  `json:"date"`
+	ID           string `json:"id"`
+	Cost         string `json:"cost"`
+	Traffic      string `json:"traffic"`
+	UsedDuration string `json:"used_duration"`
+	Date         string `json:"date"`
 }
 
 type UsageRecord struct {
@@ -210,12 +212,33 @@ func isPackageTable(table *html.Node) bool {
 	return traffic && balance
 }
 
-func parseAmount(value string) (float64, error) {
-	amount, err := strconv.ParseFloat(value, 64)
-	if err != nil || math.IsNaN(amount) || math.IsInf(amount, 0) {
-		return 0, errors.New("金额无效")
+var amountRE = regexp.MustCompile(`^[+-]?[0-9]+(?:\.([0-9]+))?$`)
+
+// parseAmount 精确解析页面上的十进制金额，并返回小数位数。
+// 只接受普通十进制写法，拒绝指数、分数、NaN、Inf 等。
+func parseAmount(value string) (*big.Rat, int, error) {
+	match := amountRE.FindStringSubmatch(value)
+	if match == nil || len(match[1]) > 12 {
+		return nil, 0, errors.New("金额无效")
 	}
-	return amount, nil
+	amount, ok := new(big.Rat).SetString(value)
+	if !ok {
+		return nil, 0, errors.New("金额无效")
+	}
+	return amount, len(match[1]), nil
+}
+
+// addAmounts 精确相加两个十进制金额，结果保留两者中较多的小数位数。
+func addAmounts(a, b string) (string, error) {
+	x, xDigits, err := parseAmount(a)
+	if err != nil {
+		return "", err
+	}
+	y, yDigits, err := parseAmount(b)
+	if err != nil {
+		return "", err
+	}
+	return new(big.Rat).Add(x, y).FloatString(max(xDigits, yDigits)), nil
 }
 
 func (d *DashboardHandler) GetPackage() (*Package, error) {
@@ -237,11 +260,11 @@ func (d *DashboardHandler) GetPackage() (*Package, error) {
 			if !required(pkg.UsedTraffic, pkg.UsedDuration, pkg.PackageCost, pkg.Balance) {
 				continue
 			}
-			balance, err := parseAmount(pkg.Balance)
+			balance, _, err := parseAmount(pkg.Balance)
 			if err != nil {
 				return nil, errors.New("账单页面中的余额无效")
 			}
-			pkg.Overdue = balance < 0
+			pkg.Overdue = balance.Sign() < 0
 			pkg.BillingPeriod = field(row, "", "计费周期", "账期")
 			return pkg, nil
 		}
@@ -353,10 +376,8 @@ func (d *DashboardHandler) GetBill(page int) ([]BillRecord, error) {
 		if !required(id, fixedText, variableText, traffic, duration, date) {
 			return nil, pageFormatError()
 		}
-		fixed, fixedErr := parseAmount(fixedText)
-		variable, variableErr := parseAmount(variableText)
-		cost := fixed + variable
-		if fixedErr != nil || variableErr != nil || math.IsNaN(cost) || math.IsInf(cost, 0) {
+		cost, err := addAmounts(fixedText, variableText)
+		if err != nil {
 			return nil, errors.New("账单金额无效")
 		}
 		bills = append(bills, BillRecord{ID: id, Cost: cost, Traffic: traffic, UsedDuration: duration, Date: date})

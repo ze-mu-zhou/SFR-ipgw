@@ -35,7 +35,7 @@ func TestUpdateConfigCredentialLifecycle(t *testing.T) {
 			if tc.sharedReference {
 				store.Config.Accounts = append(store.Config.Accounts, &model.Account{Username: "other", CredentialRef: "old"})
 			}
-			if err := store.Persist(); err != nil {
+			if err := store.persist(); err != nil {
 				t.Fatal(err)
 			}
 			before, err := os.ReadFile(path)

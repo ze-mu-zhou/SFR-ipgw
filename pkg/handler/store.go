@@ -38,9 +38,10 @@ func configPath(path string) (string, error) {
 	return filepath.Join(home, ".ipgw"), nil
 }
 
-// Persist replaces the complete configuration. Read-modify-write callers must
-// use UpdateConfig, which reloads the latest state under the same lock.
-func (s *StoreHandler) Persist() error {
+// persist replaces the complete configuration without reloading it first, so it
+// is kept unexported. Callers must use UpdateConfig, which reloads the latest
+// state under the same lock before changing it.
+func (s *StoreHandler) persist() error {
 	if s.Config == nil {
 		return errors.New("未加载配置")
 	}

@@ -119,7 +119,11 @@ var configAccountSetCommand = &cli.Command{
 	Name:   "set",
 	Usage:  "修改账号密码，或设为默认账号",
 	Before: rejectPositionalArguments,
-	Flags:  append(credentialFlags(), &cli.BoolFlag{Name: "default", Usage: "设为默认账号"}),
+	Flags: []cli.Flag{
+		&cli.StringFlag{Name: "username", Aliases: []string{"u"}, Required: true, Usage: "要修改的`学号`"},
+		&cli.BoolFlag{Name: "ask-password", Usage: "交互输入新密码（与 --default 同时使用时也修改密码）"},
+		&cli.BoolFlag{Name: "default", Usage: "设为默认账号"},
+	},
 	Action: func(ctx *cli.Context) error {
 		store, err := loadStore(ctx)
 		if err != nil {

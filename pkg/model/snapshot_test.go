@@ -22,7 +22,7 @@ func TestParseTrafficUnitsAndPrecision(t *testing.T) {
 			t.Errorf("%s: got %+v, %v", tc.display, measurement, err)
 		}
 	}
-	for _, display := range []string{"1 GB", "NaN B", "-2 B", "1 Gb/s", "999999999999999999999 TB", "无数据"} {
+	for _, display := range []string{"1 GB", "NaN B", "-2 B", "1 Gb/s", "1 b", "1 kb", "999999999999999999999 TB", "无数据"} {
 		if _, err := ParseTraffic(display, 0); err == nil {
 			t.Errorf("accepted invalid or ambiguous value %q", display)
 		}

@@ -1,0 +1,8 @@
+# 仓库内统一使用 LF，Windows 检出后也保持 LF，gofmt 可在所有平台检查。
+* text=auto eol=lf
+
+# PowerShell 脚本在 Windows 上习惯使用 CRLF。
+*.ps1 text eol=crlf
+
+*.zip binary
+*.exe binary

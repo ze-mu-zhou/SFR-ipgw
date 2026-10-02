@@ -42,7 +42,7 @@ func ParseTraffic(display string, base int) (Measurement, error) {
 	if parts == nil {
 		return measurement, fmt.Errorf("无法识别流量单位：%q", display)
 	}
-	if len(parts[2]) > 1 && strings.HasSuffix(parts[2], "b") {
+	if strings.HasSuffix(parts[2], "b") {
 		return measurement, errors.New("小写 b 可能表示比特，不能按字节生成快照；请确认页面单位")
 	}
 	unit := strings.ToUpper(parts[2])

@@ -30,6 +30,8 @@ type querySection struct {
 	Error  string `json:"error,omitempty"`
 }
 
+// infoReport 的 schema_version 在 JSON 字段含义或类型变化时递增。
+// 版本 2：bills[].cost 由数字改为十进制字符串，与其他金额字段一致。
 type infoReport struct {
 	SchemaVersion int                     `json:"schema_version"`
 	StartedAt     time.Time               `json:"started_at"`
@@ -60,7 +62,7 @@ var InfoCommand = &cli.Command{
 }
 
 func runInfo(ctx *cli.Context) error {
-	report := &infoReport{SchemaVersion: 1, StartedAt: time.Now().UTC(), Status: "ok", Sections: map[string]querySection{}}
+	report := &infoReport{SchemaVersion: 2, StartedAt: time.Now().UTC(), Status: "ok", Sections: map[string]querySection{}}
 	var queryErr error
 	var account *model.Account
 	err := validateInfoOptions(ctx)
@@ -230,7 +232,7 @@ func printInfoReport(w io.Writer, report *infoReport) {
 				fmt.Fprintln(w, "  无记录")
 			}
 			for _, bill := range data {
-				fmt.Fprintf(w, "  #%s  %s  %.2f 元  %s\n", bill.ID, bill.Date, bill.Cost, bill.Traffic)
+				fmt.Fprintf(w, "  #%s  %s  %s 元  %s\n", bill.ID, bill.Date, bill.Cost, bill.Traffic)
 			}
 		case []handler.RechargeRecord:
 			if len(data) == 0 {

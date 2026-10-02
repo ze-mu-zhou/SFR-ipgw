@@ -5,23 +5,22 @@ package cmd
 import (
 	"bytes"
 	"io"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/urfave/cli/v2"
 	"github.com/ze-mu-zhou/SFR-ipgw/pkg/handler"
-	"github.com/ze-mu-zhou/SFR-ipgw/pkg/model"
 )
 
 func TestDeleteAccountCleanupFailureIsWarningAfterCommit(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.json")
-	store, _ := handler.NewStoreHandler(path)
 	// An invalid reference reliably fails validation without touching the real vault.
-	store.Config = &model.Config{DefaultAccount: "test", Accounts: []*model.Account{{Username: "test", CredentialRef: "invalid\x00reference"}}}
-	if err := store.Persist(); err != nil {
+	if err := os.WriteFile(path, []byte(`{"default_account":"test","accounts":[{"username":"test","credential_ref":"invalid\u0000reference"}]}`), 0600); err != nil {
 		t.Fatal(err)
 	}
+	store, _ := handler.NewStoreHandler(path)
 	var stderr bytes.Buffer
 	app := &cli.App{
 		Writer: io.Discard, ErrWriter: &stderr,

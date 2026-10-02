@@ -21,8 +21,7 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Check formatting
-        # Windows 检出为 CRLF，gofmt 会报告所有文件，只在 Linux 上检查
-        if: runner.os == 'Linux'
+        shell: bash
         run: test -z "$(gofmt -l . | tee /dev/stderr)"
       - run: go vet ./...
       - name: Staticcheck

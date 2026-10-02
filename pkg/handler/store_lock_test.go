@@ -18,7 +18,7 @@ func TestUpdateConfigReloadsBeforeChange(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.json")
 	first, _ := NewStoreHandler(path)
 	first.Config = &model.Config{Accounts: []*model.Account{{Username: "alice", CredentialRef: "old"}}}
-	if err := first.Persist(); err != nil {
+	if err := first.persist(); err != nil {
 		t.Fatal(err)
 	}
 	second, _ := NewStoreHandler(path)

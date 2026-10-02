@@ -110,3 +110,18 @@ func TestBasicAndDevicesRejectMissingFields(t *testing.T) {
 		t.Fatalf("explicit empty grid: %+v %v", rows, err)
 	}
 }
+
+func TestAddAmountsIsExact(t *testing.T) {
+	for _, tc := range []struct{ a, b, want string }{
+		{"0.1", "0.2", "0.3"}, {"5.25", "0.75", "6.00"}, {"2", "3", "5"}, {"10", "-2.5", "7.5"},
+	} {
+		if got, err := addAmounts(tc.a, tc.b); err != nil || got != tc.want {
+			t.Errorf("%s + %s = %q, %v; want %q", tc.a, tc.b, got, err, tc.want)
+		}
+	}
+	for _, bad := range []string{"1e3", "1/2", "0x10", "", ".", "1.", "1,000"} {
+		if _, err := addAmounts(bad, "0"); err == nil {
+			t.Errorf("accepted non-decimal amount %q", bad)
+		}
+	}
+}

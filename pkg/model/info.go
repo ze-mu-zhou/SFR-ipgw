@@ -11,14 +11,18 @@ type Info struct {
 	Balance           float64
 }
 
+// FormattedTraffic 以十进制单位（1 KB = 1000 B）显示网关返回的字节数。
 func (i *Info) FormattedTraffic() string {
-	if i.Traffic > 1000*1000 {
-		return fmt.Sprintf("%.2f M", float64(i.Traffic)/(1000*1000))
+	units := []struct {
+		size int64
+		name string
+	}{{1000 * 1000 * 1000 * 1000, "TB"}, {1000 * 1000 * 1000, "GB"}, {1000 * 1000, "MB"}, {1000, "KB"}}
+	for _, unit := range units {
+		if i.Traffic >= unit.size {
+			return fmt.Sprintf("%.2f %s", float64(i.Traffic)/float64(unit.size), unit.name)
+		}
 	}
-	if i.Traffic > 1000 {
-		return fmt.Sprintf("%.2f K", float64(i.Traffic)/1000)
-	}
-	return fmt.Sprintf("%d b", i.Traffic)
+	return fmt.Sprintf("%d B", i.Traffic)
 }
 
 func (i *Info) FormattedUsedTime() string {
@@ -29,5 +33,5 @@ func (i *Info) FormattedUsedTime() string {
 }
 
 func (i *Info) FormattedBalance() string {
-	return fmt.Sprintf("%.2f R", i.Balance)
+	return fmt.Sprintf("%.2f 元", i.Balance)
 }

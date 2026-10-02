@@ -35,7 +35,7 @@ func TestPersistOnlySerializableCredentials(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config")
 	store, _ := NewStoreHandler(path)
 	store.Config = &model.Config{Accounts: []*model.Account{{Username: "test", Password: "sensitive", CredentialRef: "vault-ref"}}}
-	if err := store.Persist(); err != nil {
+	if err := store.persist(); err != nil {
 		t.Fatal(err)
 	}
 	reloaded, _ := NewStoreHandler(path)
