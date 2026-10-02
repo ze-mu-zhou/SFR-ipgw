@@ -13,6 +13,16 @@ import (
 	"golang.org/x/net/html"
 )
 
+// 学校服务器地址。网关（gateway）、计费系统（dashboard）与统一认证（CAS）
+// 的域名或端口变化时只需修改这里。
+const (
+	gatewayHost   = "ipgw.neu.edu.cn"
+	gatewayURL    = "https://" + gatewayHost
+	dashboardHost = gatewayHost + ":8800"
+	dashboardURL  = "https://" + dashboardHost
+	casLoginURL   = "https://pass.neu.edu.cn/tpass/login"
+)
+
 func newSession() *http.Client {
 	jar, _ := cookiejar.New(nil)
 	return &http.Client{Jar: jar, Timeout: 30 * time.Second, CheckRedirect: func(req *http.Request, via []*http.Request) error {
@@ -89,7 +99,7 @@ func pageFormatError() error {
 }
 
 func dashboardPage(client *http.Client, path string) (string, error) {
-	resp, err := client.Get("https://ipgw.neu.edu.cn:8800" + path)
+	resp, err := client.Get(dashboardURL + path)
 	if err != nil {
 		return "", safeRequestError(err)
 	}
@@ -109,7 +119,7 @@ func dashboardPage(client *http.Client, path string) (string, error) {
 }
 
 func isDashboardLogin(u *url.URL) bool {
-	return u.Host != "ipgw.neu.edu.cn:8800" || strings.Contains(u.Path, "login")
+	return u.Host != dashboardHost || strings.Contains(u.Path, "login")
 }
 
 // Network errors may carry CAS tickets in their URL. Preserve the cause only.

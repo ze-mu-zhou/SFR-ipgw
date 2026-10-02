@@ -98,7 +98,7 @@ func (h *IPGWHandler) FetchUsageInfo() error {
 }
 
 func (h *IPGWHandler) requestLoginAPI() (string, error) {
-	resp, err := h.client.Get("https://ipgw.neu.edu.cn/")
+	resp, err := h.client.Get(gatewayURL + "/")
 	if err != nil {
 		return "", safeRequestError(err)
 	}
@@ -106,7 +106,7 @@ func (h *IPGWHandler) requestLoginAPI() (string, error) {
 	if _, err = responseBody(resp); err != nil {
 		return "", err
 	}
-	service := "http://ipgw.neu.edu.cn/srun_portal_sso?" + query
+	service := "http://" + gatewayHost + "/srun_portal_sso?" + query
 	resp, err = h.client.Get(casLoginURL + "?" + url.Values{"service": {service}}.Encode())
 	if err != nil {
 		return "", safeRequestError(err)
@@ -127,10 +127,10 @@ func (h *IPGWHandler) requestLoginAPI() (string, error) {
 	if _, err = responseBody(resp); err != nil {
 		return "", err
 	}
-	if portal.Hostname() != "ipgw.neu.edu.cn" || !strings.HasPrefix(portal.Path, "/srun_portal") {
+	if portal.Hostname() != gatewayHost || !strings.HasPrefix(portal.Path, "/srun_portal") {
 		return "", errors.New("统一认证未返回网关票据")
 	}
-	resp, err = h.client.Get("https://ipgw.neu.edu.cn/v1" + portal.RequestURI())
+	resp, err = h.client.Get(gatewayURL + "/v1" + portal.RequestURI())
 	if err != nil {
 		return "", safeRequestError(err)
 	}
@@ -138,7 +138,7 @@ func (h *IPGWHandler) requestLoginAPI() (string, error) {
 }
 
 func (h *IPGWHandler) fetchGatewayInfo() error {
-	req, err := http.NewRequest(http.MethodGet, "https://ipgw.neu.edu.cn/cgi-bin/rad_user_info", nil)
+	req, err := http.NewRequest(http.MethodGet, gatewayURL+"/cgi-bin/rad_user_info", nil)
 	if err != nil {
 		return err
 	}
@@ -183,11 +183,11 @@ func (h *IPGWHandler) ParseBasicInfo() error {
 }
 
 func (h *IPGWHandler) Logout() error {
-	req, err := http.NewRequest(http.MethodGet, "https://ipgw.neu.edu.cn/cgi-bin/srun_portal?"+url.Values{"action": {"logout"}, "username": {h.info.Username}}.Encode(), nil)
+	req, err := http.NewRequest(http.MethodGet, gatewayURL+"/cgi-bin/srun_portal?"+url.Values{"action": {"logout"}, "username": {h.info.Username}}.Encode(), nil)
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Referer", "https://ipgw.neu.edu.cn/srun_portal_success?ac_id=1")
+	req.Header.Set("Referer", gatewayURL+"/srun_portal_success?ac_id=1")
 	resp, err := h.client.Do(req)
 	if err != nil {
 		return safeRequestError(err)
@@ -238,12 +238,12 @@ func (h *IPGWHandler) Kick(sid string) (bool, error) {
 		h.kickReady = false
 		return false, pageFormatError()
 	}
-	req, err := http.NewRequest(http.MethodPost, "https://ipgw.neu.edu.cn:8800/home/delete?"+url.Values{"id": {sid}}.Encode(), strings.NewReader(url.Values{"_csrf-8800": {token}}.Encode()))
+	req, err := http.NewRequest(http.MethodPost, dashboardURL+"/home/delete?"+url.Values{"id": {sid}}.Encode(), strings.NewReader(url.Values{"_csrf-8800": {token}}.Encode()))
 	if err != nil {
 		return false, err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("Referer", "https://ipgw.neu.edu.cn:8800/home/index")
+	req.Header.Set("Referer", dashboardURL+"/home/index")
 	resp, err := h.client.Do(req)
 	if err != nil {
 		return false, safeRequestError(err)

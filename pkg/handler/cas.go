@@ -16,8 +16,6 @@ import (
 	"unicode/utf16"
 )
 
-const casLoginURL = "https://pass.neu.edu.cn/tpass/login"
-
 var casKeyRE = regexp.MustCompile(`\b(?:const|let|var)\s+publicKeyStr\s*=\s*["']([A-Za-z0-9+/=]+)["']`)
 
 func readCASResponse(resp *http.Response) (string, error) {
