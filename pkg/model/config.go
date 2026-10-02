@@ -46,14 +46,11 @@ func (c *Config) DeleteAccount(username string) error {
 	return fmt.Errorf("未找到账号 '%s'", username)
 }
 
-func (c *Config) SetDefaultAccount(username string) bool {
-	for _, account := range c.Accounts {
-		if account.Username == username {
-			c.DefaultAccount = username
-			return true
-		}
+// SetDefaultAccount 仅在账号存在时设为默认；调用方需先确认账号存在。
+func (c *Config) SetDefaultAccount(username string) {
+	if c.GetAccount(username) != nil {
+		c.DefaultAccount = username
 	}
-	return false
 }
 
 func (c *Config) GetDefaultAccount() *Account {

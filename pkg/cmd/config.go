@@ -34,10 +34,11 @@ var configAccountAddCommand = &cli.Command{
 	Name:   "add",
 	Usage:  "添加账号；默认将密码保存到系统凭据管理器或密钥环",
 	Before: rejectPositionalArguments,
-	Flags: append(credentialFlags(),
+	Flags: []cli.Flag{
+		&cli.StringFlag{Name: "username", Aliases: []string{"u"}, Required: true, Usage: "要添加的`学号`"},
 		&cli.BoolFlag{Name: "default", Usage: "设为默认账号"},
 		&cli.BoolFlag{Name: "no-store-password", Usage: "只保存账号，不保存密码；每次使用时输入"},
-	),
+	},
 	Action: func(ctx *cli.Context) error {
 		store, err := loadStore(ctx)
 		if err != nil {
@@ -45,13 +46,10 @@ var configAccountAddCommand = &cli.Command{
 		}
 		username := ctx.String("username")
 		if username == "" {
-			return errors.New("请用 -u 指定学号")
+			return errors.New("学号不能为空")
 		}
 		if store.Config.GetAccount(username) != nil {
 			return errors.New("账号已存在，请使用 config account set")
-		}
-		if ctx.Bool("no-store-password") && ctx.Bool("ask-password") {
-			return errors.New("--no-store-password 不能与 --ask-password 同时使用")
 		}
 		password := ""
 		if !ctx.Bool("no-store-password") {

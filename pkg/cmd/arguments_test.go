@@ -81,6 +81,7 @@ func TestInvalidArgumentsHaveNoSideEffects(t *testing.T) {
 	cases = append(cases,
 		[]string{"typo"}, []string{"config", "typo"}, []string{"config", "account", "typo"},
 		[]string{"config", "account", "del"},
+		[]string{"config", "account", "add"}, []string{"config", "account", "add", "-u", "new", "--ask-password"},
 		[]string{"kick"}, []string{"kick", "sid", "--dry-run"},
 		[]string{"kick", "sid", "-u", "review"}, []string{"kick", "sid", "--ask-password"},
 		[]string{"kick", "sid", "--help"}, []string{"kick", "sid", ""}, []string{"kick", "sid", "  "},
@@ -187,5 +188,16 @@ func TestKickValidatesWholeSIDListBeforeAction(t *testing.T) {
 		if err := app.Run(append([]string{"ipgw"}, tc.args...)); err != nil || !called {
 			t.Fatalf("valid SID list rejected: %v, called=%v", err, called)
 		}
+	}
+}
+
+func TestAddRejectsEmptyUsername(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	err := argumentTestApp(io.Discard).Run([]string{"ipgw", "--config", path, "config", "account", "add", "-u", "", "--no-store-password"})
+	if err == nil {
+		t.Fatal("empty username was accepted")
+	}
+	if _, statErr := os.Stat(path); !os.IsNotExist(statErr) {
+		t.Fatalf("configuration was written: %v", statErr)
 	}
 }
